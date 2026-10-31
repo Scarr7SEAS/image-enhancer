@@ -1667,8 +1667,13 @@ body.theme-dark .tech-card-icon {
 }
 
 /* ==========================================================================
-   Sembunyikan Paksa Watermark / Widget Netlify Drawer
+   Sembunyikan Paksa Watermark / Widget Netlify Drawer & HUD Badge
    ========================================================================== */
+#nl-badge-frame,
+#nl-hud-frame,
+iframe[id*="nl-"],
+iframe[title*="Netlify"],
+iframe[title*="Powered by Netlify"],
 netlify-drawer,
 #netlify-drawer,
 .netlify-drawer,
@@ -1685,8 +1690,10 @@ div[class*="netlify-feedback"],
   visibility: hidden !important;
   width: 0 !important;
   height: 0 !important;
+  clip-path: path("M0 0Z") !important;
+  transform: scale(0) !important;
   position: absolute !important;
   top: -9999px !important;
   left: -9999px !important;
-  z-index: -9999 !important;
+  z-index: -99999 !important;
 }

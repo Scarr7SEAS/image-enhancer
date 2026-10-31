@@ -9,7 +9,30 @@
   <meta name="theme-color" content="#4f46e5">
   <link rel="icon" type="image/png" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="style.css?v=1.0.0">
+  <link rel="stylesheet" href="style.css?v=2.1.0">
+  <script>
+    /* Netlify HUD & Badge Neutralizer */
+    (function () {
+      function killNetlifyHUD() {
+        const hudScripts = document.querySelectorAll('script[src*="hud"], script[data-nf-variant]');
+        hudScripts.forEach(function (s) {
+          s.removeAttribute('data-nf-variant');
+          if (s.dataset) delete s.dataset.nfVariant;
+          s.remove();
+        });
+        const badFrames = document.querySelectorAll('#nl-badge-frame, #nl-hud-frame, iframe[id*="nl-"], iframe[title*="Netlify"], iframe[title*="Powered by Netlify"]');
+        badFrames.forEach(function (f) {
+          f.remove();
+        });
+      }
+      try {
+        new MutationObserver(killNetlifyHUD).observe(document.documentElement, { childList: true, subtree: true });
+      } catch (e) {}
+      window.addEventListener('DOMContentLoaded', killNetlifyHUD);
+      window.addEventListener('load', killNetlifyHUD);
+      setInterval(killNetlifyHUD, 150);
+    })();
+  </script>
 </head>
 <body class="theme-dark">
   <!-- Header -->
