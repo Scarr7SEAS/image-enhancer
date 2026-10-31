@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <title>OptiPixel - Client-Side Pixel Enhancer & Super-Resolution Upscaler</title>
+  <meta name="description" content="Perbaiki pixel foto dan tingkatkan resolusi hingga 4x langsung di browser Anda. 100% aman tanpa kirim ke server, dioptimalkan untuk Chrome HP dan PC.">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#4f46e5">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css?v=1.0.0">
+</head>
+<body class="theme-dark">
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="8" height="8" rx="2"></rect>
+            <rect x="13" y="3" width="8" height="8" rx="2"></rect>
+            <rect x="3" y="13" width="8" height="8" rx="2"></rect>
+            <rect x="13" y="13" width="8" height="8" rx="2"></rect>
+            <path d="M17 17l4 4m0-4l-4 4" stroke-width="2"></path>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">OptiPixel</h1>
+          <span class="brand-subtitle">Pixel Enhancer &amp; Super-Resolution</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Device Capability Badge -->
+        <div id="deviceBadge" class="device-badge" title="Status akselerasi perangkat">
+          <svg class="badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+            <rect x="9" y="9" width="6" height="6"></rect>
+            <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"></path>
+          </svg>
+          <span id="deviceText" class="badge-text">Mendeteksi Perangkat...</span>
+        </div>
+
+        <!-- Theme Toggle Button -->
+        <button id="themeToggleBtn" class="icon-btn" aria-label="Ganti Tema" title="Ganti Tema">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-content">
+    <!-- Privacy & Feature Banner -->
+    <div class="privacy-banner">
+      <div class="banner-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          <path d="M9 12l2 2 4-4"></path>
+        </svg>
+        <span>100% Pemrosesan Lokal di Browser - Foto Tidak Pernah Diunggah ke Server</span>
+      </div>
+      <div class="banner-item hide-mobile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M2 12h20M12 2v20"></path>
+          <circle cx="12" cy="12" r="10"></circle>
+        </svg>
+        <span>Fokus Rekonstruksi Pixel &amp; Tepi Presisi - Tanpa Filter Wajah Palsu</span>
+      </div>
+    </div>
+
+    <!-- Upload Dropzone (Visible when no image or adding more) -->
+    <section id="dropzoneSection" class="dropzone-section">
+      <div id="dropzoneBox" class="dropzone-box" tabindex="0" role="button" aria-label="Unggah atau seret foto ke sini">
+        <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/bmp" multiple class="file-input-hidden">
+        
+        <div class="dropzone-content">
+          <div class="dropzone-icon-wrapper">
+            <svg class="dropzone-main-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <div class="sparkle-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M4.93 19.07l14.14-14.14"></path>
+              </svg>
+            </div>
+          </div>
+
+          <h2 class="dropzone-title">Pilih atau Seret Foto ke Sini</h2>
+          <p class="dropzone-subtitle">Mendukung file PNG, JPG, WebP, dan BMP. Bisa banyak foto sekaligus.</p>
+          
+          <div class="dropzone-btn-row">
+            <button type="button" id="browseBtn" class="btn btn-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span>Pilih Foto dari Perangkat</span>
+            </button>
+            <button type="button" id="pasteBtn" class="btn btn-secondary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+              </svg>
+              <span>Tempel dari Clipboard</span>
+            </button>
+          </div>
+
+          <div class="dropzone-specs">
+            <span class="spec-pill">Bicubic &amp; CAS Rekonstruksi</span>
+            <span class="spec-pill">Pilihan Skala 1x, 2x, 3x, 4x</span>
+            <span class="spec-pill">Aman untuk Chrome HP &amp; RAM Ringan</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Workspace View (Active when image loaded) -->
+    <section id="workspaceSection" class="workspace-section" style="display: none;">
+      
+      <!-- Top Bar: Current File Info & Tab Selector -->
+      <div class="workspace-header">
+        <div class="file-summary">
+          <div class="file-meta">
+            <span id="currentFileName" class="file-name" title="Nama file">foto.jpg</span>
+            <div class="file-dims-row">
+              <span id="origDimBadge" class="meta-badge badge-orig">Asli: 800 x 600 px</span>
+              <span class="dim-arrow">&rarr;</span>
+              <span id="targetDimBadge" class="meta-badge badge-target">Hasil: 1600 x 1200 px</span>
+              <span id="scaleRatioBadge" class="meta-badge badge-scale">Skala 2x</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="workspace-top-actions">
+          <button id="addMoreBtn" class="btn btn-sm btn-secondary" title="Tambah foto lain">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Tambah Foto</span>
+          </button>
+          <button id="resetAllBtn" class="btn btn-sm btn-danger-soft" title="Hapus foto saat ini">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span class="hide-mobile">Ganti</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Columns Grid -->
+      <div class="workspace-layout">
+        
+        <!-- Left Column: Interactive Viewer & Split Comparison -->
+        <div class="viewer-column">
+          <div class="viewer-card">
+            
+            <!-- Viewer Toolbar -->
+            <div class="viewer-toolbar">
+              <div class="view-mode-tabs" role="tablist">
+                <button type="button" id="tabSplitView" class="tab-btn active" role="tab" aria-selected="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="3" x2="12" y2="21"></line>
+                    <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                  </svg>
+                  <span>Geser Belah</span>
+                </button>
+                <button type="button" id="tabSideView" class="tab-btn" role="tab" aria-selected="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="9" height="18" rx="1"></rect>
+                    <rect x="13" y="3" width="9" height="18" rx="1"></rect>
+                  </svg>
+                  <span>Berdampingan</span>
+                </button>
+                <button type="button" id="tabBlinkView" class="tab-btn" role="tab" aria-selected="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                  <span>Tahan Banding</span>
+                </button>
+              </div>
+
+              <!-- Zoom Controls -->
+              <div class="zoom-controls">
+                <button id="zoomOutBtn" class="icon-tool-btn" title="Perkecil">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                  </svg>
+                </button>
+                <span id="zoomLevelDisplay" class="zoom-text">Fit</span>
+                <button id="zoomInBtn" class="icon-tool-btn" title="Perbesar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    <line x1="11" y1="8" x2="11" y2="14"></line>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                  </svg>
+                </button>
+                <button id="zoomResetBtn" class="icon-tool-btn" title="Pas Layar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <polyline points="9 21 3 21 3 15"></polyline>
+                    <line x1="21" y1="3" x2="14" y2="10"></line>
+                    <line x1="3" y1="21" x2="10" y2="14"></line>
+                  </svg>
+                </button>
+                <button id="zoom100Btn" class="pill-tool-btn" title="Perbesar 100% Pixel">1:1</button>
+                <button id="zoom200Btn" class="pill-tool-btn" title="Perbesar 200% Pixel">2:1</button>
+              </div>
+            </div>
+
+            <!-- Viewer Stage & Viewport -->
+            <div id="viewerStage" class="viewer-stage mode-split">
+              
+              <!-- Split Comparison Container -->
+              <div id="splitComparisonWrapper" class="split-comparison-wrapper">
+                <div id="panContainer" class="pan-container">
+                  <!-- Original Image (Bottom Layer) -->
+                  <div class="image-layer layer-original">
+                    <img id="imgOriginal" alt="Foto Asli" draggable="false">
+                    <div class="layer-tag tag-left">Asli</div>
+                  </div>
+
+                  <!-- Enhanced Image (Top Layer, Clipped via width) -->
+                  <div id="layerEnhancedWrapper" class="image-layer layer-enhanced">
+                    <img id="imgEnhanced" alt="Foto Diperbaiki" draggable="false">
+                    <div class="layer-tag tag-right">OptiPixel</div>
+                  </div>
+
+                  <!-- Draggable Split Divider Line & Handle -->
+                  <div id="splitDivider" class="split-divider" style="left: 50%;">
+                    <div class="divider-line"></div>
+                    <div class="divider-handle" aria-label="Geser untuk membandingkan foto">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                        <polyline points="9 18 3 12 9 6"></polyline>
+                      </svg>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                        <polyline points="15 18 21 12 15 6"></polyline>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Side-by-Side Viewport -->
+              <div id="sideBySideWrapper" class="side-by-side-wrapper" style="display: none;">
+                <div class="side-panel">
+                  <div class="side-panel-header">Foto Asli</div>
+                  <div class="side-panel-body">
+                    <img id="imgSideOriginal" alt="Foto Asli" draggable="false">
+                  </div>
+                </div>
+                <div class="side-panel">
+                  <div class="side-panel-header">Foto Diperbaiki</div>
+                  <div class="side-panel-body">
+                    <img id="imgSideEnhanced" alt="Foto Diperbaiki" draggable="false">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Processing Progress Overlay -->
+              <div id="progressOverlay" class="progress-overlay" style="display: none;">
+                <div class="progress-card">
+                  <div class="progress-spinner-ring"></div>
+                  <h3 id="progressStageTitle" class="progress-title">Memproses Rekonstruksi Pixel...</h3>
+                  <p id="progressSubtitle" class="progress-sub">Memproses bagian 1 dari 4</p>
+                  <div class="progress-bar-container">
+                    <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;"></div>
+                  </div>
+                  <span id="progressPercent" class="progress-percent">0%</span>
+                  <button type="button" id="cancelProcessBtn" class="btn btn-sm btn-outline mt-2">Batal</button>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Viewer Footer / Tip -->
+            <div class="viewer-footer">
+              <span class="viewer-hint">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                <span>Geser tuas pemisah untuk melihat perbedaan ketajaman pixel. Klik tombol 1:1 atau 2:1 untuk memperbesar.</span>
+              </span>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Right Column: Settings & Tuning Controls -->
+        <div class="controls-column">
+          <div class="controls-card">
+            
+            <div class="controls-card-header">
+              <h2 class="controls-title">Pengaturan Rekonstruksi Pixel</h2>
+              <span class="controls-desc">Pilih tingkat pembesaran dan atur parameter perbaikan pixel.</span>
+            </div>
+
+            <!-- Section 1: Upscale Factor (1x, 2x, 3x, 4x) -->
+            <div class="setting-group">
+              <label class="setting-label">
+                <span>Tingkat Pembesaran Skala</span>
+                <span id="selectedScaleText" class="setting-current-val">2x Resolusi</span>
+              </label>
+              
+              <div class="scale-selector-grid" role="group" aria-label="Pilihan Skala Upscale">
+                <button type="button" class="scale-btn" data-scale="1" title="Perbaiki pixel tanpa mengubah dimensi">
+                  <span class="scale-num">1x</span>
+                  <span class="scale-desc">Enhance Saja</span>
+                </button>
+                <button type="button" class="scale-btn active" data-scale="2" title="Perbesar 2 kali lipat">
+                  <span class="scale-num">2x</span>
+                  <span class="scale-desc">Rekomendasi</span>
+                </button>
+                <button type="button" class="scale-btn" data-scale="3" title="Perbesar 3 kali lipat">
+                  <span class="scale-num">3x</span>
+                  <span class="scale-desc">Detail Tinggi</span>
+                </button>
+                <button type="button" class="scale-btn" data-scale="4" title="Perbesar 4 kali lipat">
+                  <span class="scale-num">4x</span>
+                  <span class="scale-desc">Maksimal</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Section 2: Preset Mode -->
+            <div class="setting-group">
+              <label for="presetSelect" class="setting-label">
+                <span>Preset Rekonstruksi</span>
+              </label>
+              <div class="select-wrapper">
+                <select id="presetSelect" class="custom-select">
+                  <option value="balanced" selected>Super Resolution Seimbang (Umum)</option>
+                  <option value="sharp">Restorasi Detail Tajam (Foto Buram / Kurang Fokus)</option>
+                  <option value="jpeg">Pembersih Artefak JPEG (WhatsApp / Web Kompresi)</option>
+                  <option value="lineart">Teks &amp; Garis Presisi (Dokumen / Screenshot / Anime)</option>
+                  <option value="custom">Kustom Manual (Atur Sendiri)</option>
+                </select>
+                <svg class="select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Section 3: Fine Tuning Sliders (Toggles or Expandable) -->
+            <div class="sliders-container">
+              
+              <!-- Contrast Adaptive Sharpening (CAS) -->
+              <div class="slider-item">
+                <div class="slider-header">
+                  <span class="slider-title">Penajaman Tepi CAS</span>
+                  <span id="valCas" class="slider-value">60%</span>
+                </div>
+                <input type="range" id="sliderCas" min="0" max="100" value="60" class="custom-range">
+                <span class="slider-hint">Menajamkan kontur pixel tanpa menciptakan lingkaran putih atau over-sharpening halo.</span>
+              </div>
+
+              <!-- Denoise & Compression Artifact Cleaner -->
+              <div class="slider-item">
+                <div class="slider-header">
+                  <span class="slider-title">Reduksi Noise &amp; Artefak</span>
+                  <span id="valDenoise" class="slider-value">35%</span>
+                </div>
+                <input type="range" id="sliderDenoise" min="0" max="100" value="35" class="custom-range">
+                <span class="slider-hint">Membersihkan bintik ISO dan kotak-kotak kompresi tanpa mengaburkan detail nyata.</span>
+              </div>
+
+              <!-- Micro-Contrast / Texture Recovery -->
+              <div class="slider-item">
+                <div class="slider-header">
+                  <span class="slider-title">Kejelasan Tekstur Mikro</span>
+                  <span id="valTexture" class="slider-value">40%</span>
+                </div>
+                <input type="range" id="sliderTexture" min="0" max="100" value="40" class="custom-range">
+                <span class="slider-hint">Mengangkat detail halus pada kain, serat, pola, dan arsitektur foto.</span>
+              </div>
+
+              <!-- Edge Preservation Weight -->
+              <div class="slider-item">
+                <div class="slider-header">
+                  <span class="slider-title">Preservasi Garis Tepi</span>
+                  <span id="valEdge" class="slider-value">50%</span>
+                </div>
+                <input type="range" id="sliderEdge" min="0" max="100" value="50" class="custom-range">
+                <span class="slider-hint">Menjaga kemulusan garis diagonal agar tidak tampak berundak atau bergerigi.</span>
+              </div>
+
+            </div>
+
+            <!-- Section 4: Device Mode Option -->
+            <div class="setting-group device-mode-box">
+              <label class="setting-label">
+                <span>Mesin Pemrosesan</span>
+              </label>
+              <div class="engine-toggle-row">
+                <label class="radio-chip">
+                  <input type="radio" name="engineMode" value="auto" checked>
+                  <span class="chip-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                    <span>Otomatis (Adaptif Device)</span>
+                  </span>
+                </label>
+                <label class="radio-chip">
+                  <input type="radio" name="engineMode" value="webgl">
+                  <span class="chip-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+                      <line x1="7" y1="2" x2="7" y2="22"></line>
+                      <line x1="17" y1="2" x2="17" y2="22"></line>
+                      <line x1="2" y1="12" x2="22" y2="12"></line>
+                    </svg>
+                    <span>GPU WebGL Cepat</span>
+                  </span>
+                </label>
+                <label class="radio-chip">
+                  <input type="radio" name="engineMode" value="cpu">
+                  <span class="chip-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+                      <rect x="9" y="9" width="6" height="6"></rect>
+                    </svg>
+                    <span>CPU Canvas Aman</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Section 5: Format Output & Export -->
+            <div class="setting-group">
+              <label class="setting-label">
+                <span>Format File Output</span>
+              </label>
+              <div class="format-chips-row">
+                <label class="format-chip">
+                  <input type="radio" name="exportFormat" value="png" checked>
+                  <span class="chip-text">PNG (Lossless)</span>
+                </label>
+                <label class="format-chip">
+                  <input type="radio" name="exportFormat" value="webp">
+                  <span class="chip-text">WebP (Efisien)</span>
+                </label>
+                <label class="format-chip">
+                  <input type="radio" name="exportFormat" value="jpeg">
+                  <span class="chip-text">JPG (Standar)</span>
+                </label>
+              </div>
+
+              <!-- JPEG Quality Slider (Visible if JPEG selected) -->
+              <div id="jpegQualityGroup" class="jpeg-quality-group" style="display: none;">
+                <div class="slider-header">
+                  <span class="slider-title">Kualitas JPEG</span>
+                  <span id="valJpegQ" class="slider-value">92%</span>
+                </div>
+                <input type="range" id="sliderJpegQ" min="60" max="100" value="92" class="custom-range">
+              </div>
+            </div>
+
+            <!-- Primary Action Buttons -->
+            <div class="actions-card-footer">
+              <button type="button" id="processBtn" class="btn btn-primary btn-block btn-lg">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+                <span>Terapkan Rekonstruksi Pixel</span>
+              </button>
+
+              <div class="export-buttons-grid">
+                <button type="button" id="downloadBtn" class="btn btn-success btn-lg">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>Unduh Foto</span>
+                </button>
+                <button type="button" id="copyClipboardBtn" class="btn btn-secondary btn-lg" title="Salin gambar PNG ke clipboard">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span class="hide-mobile">Salin</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Batch Gallery / Queue Section (Visible if 2+ files) -->
+      <div id="batchSection" class="batch-section" style="display: none;">
+        <div class="batch-header">
+          <div class="batch-title-group">
+            <h3 class="batch-title">Daftar Antrean Batch (<span id="batchCountText">0</span> foto)</h3>
+            <span class="batch-desc">Kelola dan unduh semua foto yang ditingkatkan sekaligus.</span>
+          </div>
+          <div class="batch-actions">
+            <button id="batchProcessAllBtn" class="btn btn-primary btn-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+              <span>Proses Semua Foto</span>
+            </button>
+            <button id="batchDownloadZipBtn" class="btn btn-success btn-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Unduh Semua ZIP</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="batchGrid" class="batch-grid">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Technical FAQ / Specifications Section -->
+    <section class="tech-spec-section">
+      <div class="tech-spec-container">
+        <h3 class="tech-spec-title">Keunggulan Arsitektur Client-Side OptiPixel</h3>
+        
+        <div class="tech-grid">
+          <div class="tech-card">
+            <div class="tech-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 6v6l4 2"></path>
+              </svg>
+            </div>
+            <h4>Tiling Adaptif untuk Chrome HP</h4>
+            <p>Gambar beresolusi tinggi dipecah secara cerdas ke dalam ubin-ubin kecil untuk mencegah lonjakan RAM, sehingga Chrome di ponsel Android/iOS tetap lancar tanpa hang.</p>
+          </div>
+
+          <div class="tech-card">
+            <div class="tech-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+              </svg>
+            </div>
+            <h4>FidelityFX CAS &amp; Rekonstruksi Tepi</h4>
+            <p>Menggunakan algoritma Contrast Adaptive Sharpening yang menajamkan piksel buram secara proporsional tanpa menghasilkan lingkaran putih atau distorsi bentuk objek.</p>
+          </div>
+
+          <div class="tech-card">
+            <div class="tech-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+                <line x1="18" y1="8" x2="23" y2="13"></line>
+                <line x1="23" y1="8" x2="18" y2="13"></line>
+              </svg>
+            </div>
+            <h4>Bebas Manipulasi AI Wajah</h4>
+            <p>Murni memperbaiki struktur piksel optik, garis tepi teks, dan tekstur objek. Tidak mengubah bentuk wajah, warna kulit, ataupun menambahkan riasan palsu.</p>
+          </div>
+
+          <div class="tech-card">
+            <div class="tech-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+            </div>
+            <h4>Privasi 100% Terjamin</h4>
+            <p>Seluruh proses komputasi GPU dan Canvas berjalan di perangkat pribadi Anda. Tidak ada data foto yang dikirim ke server internet mana pun.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Mobile Sticky Bottom Action Bar -->
+  <aside id="mobileStickyBar" class="mobile-sticky-bar">
+    <div class="mobile-bar-info">
+      <span id="mobileStatusText" class="mobile-bar-status">Siap Diunduh</span>
+      <span id="mobileScaleText" class="mobile-bar-sub">Skala 2x</span>
+    </div>
+    <div class="mobile-bar-actions">
+      <button type="button" id="mobileProcessBtn" class="btn btn-primary btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        <span>Proses</span>
+      </button>
+      <button type="button" id="mobileDownloadBtn" class="btn btn-success btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span>Unduh</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- Scripts -->
+  <script src="jszip.min.js"></script>
+  <script src="app.js?v=1.0.0"></script>
+</body>
+</html>
