@@ -9,10 +9,10 @@
 
   // --- Constants & Defaults ---
   const PRESETS = {
-    balanced: { scale: 2, cas: 60, denoise: 35, texture: 40, edge: 50 },
-    sharp: { scale: 2, cas: 85, denoise: 20, texture: 65, edge: 60 },
-    jpeg: { scale: 2, cas: 50, denoise: 75, texture: 30, edge: 45 },
-    lineart: { scale: 2, cas: 90, denoise: 60, texture: 20, edge: 80 },
+    balanced: { scale: 2, cas: 80, denoise: 25, texture: 65, edge: 60 },
+    sharp: { scale: 2, cas: 95, denoise: 15, texture: 85, edge: 75 },
+    jpeg: { scale: 2, cas: 70, denoise: 65, texture: 50, edge: 55 },
+    lineart: { scale: 2, cas: 100, denoise: 40, texture: 40, edge: 90 },
     custom: null
   };
 
@@ -101,6 +101,11 @@
           uniform float uTextureClarity;
           uniform float uEdgePreserve;
 
+          // Luminance calculation
+          float getLum(vec3 c) {
+            return dot(c, vec3(0.299, 0.587, 0.114));
+          }
+
           // Fast Catmull-Rom Bicubic filtering via 4 bilinear texture samples
           vec4 textureBicubic(sampler2D tex, vec2 uv, vec2 size) {
             vec2 invSize = 1.0 / size;
@@ -136,35 +141,68 @@
           }
 
           void main() {
+            // Source resolution step (true physical pixel distance)
+            vec2 srcStep = 1.0 / uSourceSize;
+
+            // Center sample via high quality bicubic
             vec4 centerSample = textureBicubic(uTexture, vTexCoord, uSourceSize);
             vec3 c = centerSample.rgb;
+            float lumC = getLum(c);
 
-            vec2 step = 1.0 / uTargetSize;
-            vec3 up = textureBicubic(uTexture, vTexCoord + vec2(0.0, -step.y), uSourceSize).rgb;
-            vec3 down = textureBicubic(uTexture, vTexCoord + vec2(0.0, step.y), uSourceSize).rgb;
-            vec3 left = textureBicubic(uTexture, vTexCoord + vec2(-step.x, 0.0), uSourceSize).rgb;
-            vec3 right = textureBicubic(uTexture, vTexCoord + vec2(step.x, 0.0), uSourceSize).rgb;
+            // Sample 8 surrounding neighbors in SOURCE space
+            vec3 tc = textureBicubic(uTexture, clamp(vTexCoord + vec2(0.0, -srcStep.y * 0.75), 0.0, 1.0), uSourceSize).rgb;
+            vec3 bc = textureBicubic(uTexture, clamp(vTexCoord + vec2(0.0, srcStep.y * 0.75), 0.0, 1.0), uSourceSize).rgb;
+            vec3 ml = textureBicubic(uTexture, clamp(vTexCoord + vec2(-srcStep.x * 0.75, 0.0), 0.0, 1.0), uSourceSize).rgb;
+            vec3 mr = textureBicubic(uTexture, clamp(vTexCoord + vec2(srcStep.x * 0.75, 0.0), 0.0, 1.0), uSourceSize).rgb;
 
-            // AMD Contrast Adaptive Sharpening (CAS)
-            vec3 minRGB = min(c, min(min(up, down), min(left, right)));
-            vec3 maxRGB = max(c, max(max(up, down), max(left, right)));
+            vec3 tl = textureBicubic(uTexture, clamp(vTexCoord + vec2(-srcStep.x * 0.75, -srcStep.y * 0.75), 0.0, 1.0), uSourceSize).rgb;
+            vec3 tr = textureBicubic(uTexture, clamp(vTexCoord + vec2(srcStep.x * 0.75, -srcStep.y * 0.75), 0.0, 1.0), uSourceSize).rgb;
+            vec3 bl = textureBicubic(uTexture, clamp(vTexCoord + vec2(-srcStep.x * 0.75, srcStep.y * 0.75), 0.0, 1.0), uSourceSize).rgb;
+            vec3 br = textureBicubic(uTexture, clamp(vTexCoord + vec2(srcStep.x * 0.75, srcStep.y * 0.75), 0.0, 1.0), uSourceSize).rgb;
 
-            // Bounded weight to prevent negative denominator and color inversion
-            vec3 amp = clamp(min(minRGB, 1.0 - maxRGB) / max(maxRGB, 0.0001), 0.0, 1.0);
-            vec3 w = -sqrt(amp) * (uSharpness * 0.125);
+            // 1. Sobel Gradient Analysis (Edge Direction & Strength)
+            float lumTL = getLum(tl), lumTC = getLum(tc), lumTR = getLum(tr);
+            float lumML = getLum(ml),               lumMR = getLum(mr);
+            float lumBL = getLum(bl), lumBC = getLum(bc), lumBR = getLum(br);
 
-            vec3 casColor = ((up + down + left + right) * w + c) / (4.0 * w + 1.0);
+            float gx = (lumTR + 2.0 * lumMR + lumBR) - (lumTL + 2.0 * lumML + lumBL);
+            float gy = (lumBL + 2.0 * lumBC + lumBR) - (lumTL + 2.0 * lumTC + lumTR);
+            float gMag = length(vec2(gx, gy));
 
-            // Bilateral / Edge Denoising
-            vec3 crossAvg = (up + down + left + right + c) * 0.2;
-            float diff = length(c - crossAvg);
-            float edgeThresh = 0.08 * (1.0 - uEdgePreserve * 0.5);
-            float denoiseFactor = smoothstep(edgeThresh, 0.0, diff) * (uDenoise * 0.6);
-            vec3 denoised = mix(casColor, crossAvg, denoiseFactor);
+            // 2. Edge-Directed Super-Resolution & Line Steepening
+            // Blurry upscaled pixels on edges have a wide sigmoidal slope.
+            // We steepen the edge by pushing the luminance towards the high or low side.
+            vec3 edgeSharpened = c;
+            if (gMag > 0.04) {
+              float laplacian = lumC - (lumTC + lumBC + lumML + lumMR) * 0.25;
+              // Push luminance towards the dominant side of the edge
+              float steepenAmount = clamp(laplacian * 2.2 * uSharpness, -0.35, 0.35);
+              edgeSharpened = c + steepenAmount * (c / max(lumC, 0.01));
+            }
 
-            // Micro-Contrast / Detail Recovery
-            vec3 highPass = c - crossAvg;
-            vec3 finalColor = denoised + highPass * (uTextureClarity * 0.35);
+            // 3. AMD Contrast Adaptive Sharpening (CAS) at source-pixel scale
+            vec3 minRGB = min(c, min(min(tc, bc), min(ml, mr)));
+            vec3 maxRGB = max(c, max(max(tc, bc), max(ml, mr)));
+            vec3 contrast = maxRGB - minRGB;
+
+            vec3 amp = clamp(min(minRGB, 1.0 - maxRGB) / max(maxRGB, 0.05), 0.0, 1.0);
+            // Weight bounded between -0.18 and 0.0
+            vec3 w = -sqrt(amp) * (uSharpness * 0.18);
+            vec3 casColor = ((tc + bc + ml + mr) * w + edgeSharpened) / (4.0 * w + 1.0);
+
+            // 4. Multi-Scale High-Frequency Detail & Texture Synthesis (Micro-Contrast)
+            vec3 localMean = (tl + tc + tr + ml + mr + bl + bc + br + c) * (1.0 / 9.0);
+            vec3 highFreq = c - localMean;
+            // Boost micro-textures (fabrics, patterns, fine hair, stone grain)
+            vec3 textureBoost = highFreq * (uTextureClarity * 1.35);
+
+            // 5. Bilateral Edge-Preserving Denoising
+            // If local contrast is low (smooth regions/JPEG noise), blend with localMean
+            float noiseWeight = smoothstep(0.08 * (1.0 - uEdgePreserve * 0.5), 0.0, gMag) * (uDenoise * 0.7);
+            vec3 denoised = mix(casColor, localMean, noiseWeight);
+
+            // 6. Combine all passes with preservation of dynamic range
+            vec3 finalColor = denoised + textureBoost;
 
             gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), centerSample.a);
           }
@@ -284,39 +322,42 @@
       const w = outW;
       const h = outH;
 
-      const sharpness = (params.cas / 100) * 0.8;
-      const denoise = (params.denoise / 100) * 0.5;
-      const clarity = (params.texture / 100) * 0.4;
+      const scale = Math.max(1, Math.round(outW / tileCanvas.width));
+      const r = Math.max(1, Math.round(scale * 0.75));
 
-      for (let y = 1; y < h - 1; y++) {
+      const sharpness = (params.cas / 100) * 1.5;
+      const denoise = (params.denoise / 100) * 0.6;
+      const clarity = (params.texture / 100) * 1.2;
+
+      for (let y = r; y < h - r; y++) {
         const row = y * w;
-        for (let x = 1; x < w - 1; x++) {
+        for (let x = r; x < w - r; x++) {
           const idx = (row + x) * 4;
 
           for (let c = 0; c < 3; c++) {
             const val = copy[idx + c];
-            const up = copy[((y - 1) * w + x) * 4 + c];
-            const down = copy[((y + 1) * w + x) * 4 + c];
-            const left = copy[(row + (x - 1)) * 4 + c];
-            const right = copy[(row + (x + 1)) * 4 + c];
+            const up = copy[((y - r) * w + x) * 4 + c];
+            const down = copy[((y + r) * w + x) * 4 + c];
+            const left = copy[(row + (x - r)) * 4 + c];
+            const right = copy[(row + (x + r)) * 4 + c];
 
-            const minN = Math.min(val, up, down, left, right);
-            const maxN = Math.max(val, up, down, left, right);
+            const minN = Math.min(val, Math.min(Math.min(up, down), Math.min(left, right)));
+            const maxN = Math.max(val, Math.max(Math.max(up, down), Math.max(left, right)));
             const contrast = (maxN - minN) / 255;
 
-            // CAS approximation
-            const edgeWeight = (1 - contrast) * sharpness;
-            const casVal = val + (val * 4 - up - down - left - right) * (edgeWeight * 0.25);
+            // Edge steepening & CAS
+            const laplacian = val - (up + down + left + right) * 0.25;
+            const casVal = val + laplacian * (sharpness * (1.0 - contrast * 0.5));
 
             // Denoise
             const avg = (up + down + left + right + val) * 0.2;
             const diff = Math.abs(val - avg);
-            const denoiseWeight = diff < 20 ? denoise : 0;
-            const smoothed = casVal * (1 - denoiseWeight) + avg * denoiseWeight;
+            const denoiseWeight = diff < 15 ? denoise : 0.0;
+            const smoothed = casVal * (1.0 - denoiseWeight) + avg * denoiseWeight;
 
             // Micro-contrast
-            const laplacian = val - avg;
-            data[idx + c] = Math.min(255, Math.max(0, smoothed + laplacian * clarity));
+            const finalVal = smoothed + laplacian * clarity;
+            data[idx + c] = Math.min(255, Math.max(0, finalVal));
           }
         }
       }
