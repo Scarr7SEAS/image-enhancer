@@ -3,6 +3,13 @@
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
 
+/models/*.onnx
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Type: application/octet-stream
+
+/ort.all.min.js
+  Cache-Control: public, max-age=31536000, immutable
+
 /jszip.min.js
   Cache-Control: public, max-age=31536000, immutable
 

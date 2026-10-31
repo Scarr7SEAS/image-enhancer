@@ -415,31 +415,37 @@
 
             </div>
 
-            <!-- Section 4: Device Mode Option -->
+            <!-- Section 4: Engine Mode Option -->
             <div class="setting-group device-mode-box">
               <label class="setting-label">
                 <span>Mesin Pemrosesan</span>
+                <span class="meta-badge badge-target" style="font-size: 11px;">Deep Learning AI</span>
               </label>
               <div class="engine-toggle-row">
                 <label class="radio-chip">
-                  <input type="radio" name="engineMode" value="auto" checked>
+                  <input type="radio" name="engineMode" value="ai" checked>
                   <span class="chip-content">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                      <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                      <polyline points="2 17 12 22 22 17"></polyline>
+                      <polyline points="2 12 12 17 22 12"></polyline>
                     </svg>
-                    <span>Otomatis (Adaptif Device)</span>
+                    <div class="chip-text-group">
+                      <span class="chip-title">AI Real-ESRGAN (Super-Resolution Otentik)</span>
+                      <span class="chip-sub">Model Neural Network Deep Learning (Kualitas HD Seperti Bugatti)</span>
+                    </div>
                   </span>
                 </label>
                 <label class="radio-chip">
                   <input type="radio" name="engineMode" value="webgl">
                   <span class="chip-content">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
-                      <line x1="7" y1="2" x2="7" y2="22"></line>
-                      <line x1="17" y1="2" x2="17" y2="22"></line>
-                      <line x1="2" y1="12" x2="22" y2="12"></line>
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                     </svg>
-                    <span>GPU WebGL Cepat</span>
+                    <div class="chip-text-group">
+                      <span class="chip-title">Shader GPU Cepat (AMD CAS + Sobel)</span>
+                      <span class="chip-sub">Instan 1 Detik &bull; Hemat Baterai &bull; Rekonstruksi Tepi</span>
+                    </div>
                   </span>
                 </label>
                 <label class="radio-chip">
@@ -449,7 +455,10 @@
                       <rect x="4" y="4" width="16" height="16" rx="2"></rect>
                       <rect x="9" y="9" width="6" height="6"></rect>
                     </svg>
-                    <span>CPU Canvas Aman</span>
+                    <div class="chip-text-group">
+                      <span class="chip-title">CPU Canvas Dasar</span>
+                      <span class="chip-sub">Kompatibilitas Komputer Lama</span>
+                    </div>
                   </span>
                 </label>
               </div>
@@ -635,6 +644,7 @@
 
   <!-- Scripts -->
   <script src="jszip.min.js"></script>
-  <script src="app.js?v=1.0.0"></script>
+  <script src="ort.min.js"></script>
+  <script src="app.js?v=2.0.0"></script>
 </body>
 </html>

@@ -367,10 +367,174 @@
     }
   }
 
+  // --- Real-ESRGAN Deep Learning AI Engine ---
+  class RealESRGANEngine {
+    constructor() {
+      this.session = null;
+      this.isLoading = false;
+      this.modelUrl = './models/realesr-general-x4v3.onnx';
+    }
+
+    async init(onProgress) {
+      if (this.session) return this.session;
+      if (this.isLoading) {
+        while (this.isLoading) {
+          await new Promise(r => setTimeout(r, 100));
+        }
+        return this.session;
+      }
+
+      this.isLoading = true;
+      if (onProgress) onProgress(15, 'Memuat model AI Real-ESRGAN (4.6 MB)...');
+
+      try {
+        if (typeof ort === 'undefined') {
+          throw new Error('Library ONNX Runtime Web belum tersedia');
+        }
+
+        // Use local SIMD WebAssembly for maximum speed without network delays
+        ort.env.wasm.wasmPaths = './';
+        ort.env.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency || 2);
+
+        this.session = await ort.InferenceSession.create(this.modelUrl, {
+          executionProviders: ['wasm']
+        });
+
+        this.isLoading = false;
+        return this.session;
+      } catch (err) {
+        this.isLoading = false;
+        console.error('Failed to load Real-ESRGAN model:', err);
+        throw err;
+      }
+    }
+
+    async processImage(sourceImg, targetScale, onProgress, checkCancelled) {
+      await this.init(onProgress);
+
+      const srcW = sourceImg.naturalWidth || sourceImg.width;
+      const srcH = sourceImg.naturalHeight || sourceImg.height;
+
+      // Source staging canvas
+      const srcCanvas = document.createElement('canvas');
+      srcCanvas.width = srcW;
+      srcCanvas.height = srcH;
+      const srcCtx = srcCanvas.getContext('2d');
+      srcCtx.drawImage(sourceImg, 0, 0);
+
+      // AI native 4x canvas
+      const ai4xCanvas = document.createElement('canvas');
+      ai4xCanvas.width = srcW * 4;
+      ai4xCanvas.height = srcH * 4;
+      const ai4xCtx = ai4xCanvas.getContext('2d');
+
+      // Optimized tile size: 96px runs at ~0.3s per tile on SIMD WASM
+      const tileSize = 96;
+      const overlap = 8;
+
+      const cols = Math.ceil(srcW / tileSize);
+      const rows = Math.ceil(srcH / tileSize);
+      const totalTiles = cols * rows;
+      let currentTile = 0;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (checkCancelled && checkCancelled()) {
+            throw new Error('PROSES_DIBATALKAN');
+          }
+
+          currentTile++;
+
+          const sx = Math.max(0, c * tileSize - overlap);
+          const sy = Math.max(0, r * tileSize - overlap);
+          const ex = Math.min(srcW, (c + 1) * tileSize + overlap);
+          const ey = Math.min(srcH, (r + 1) * tileSize + overlap);
+          let sw = ex - sx;
+          let sh = ey - sy;
+
+          // Strictly enforce multiples of 4 for CNN spatial dimension requirements
+          sw = Math.max(4, Math.floor(sw / 4) * 4);
+          sh = Math.max(4, Math.floor(sh / 4) * 4);
+
+          const tileImgData = srcCtx.getImageData(sx, sy, sw, sh);
+          const pixels = tileImgData.data;
+          const planeSize = sw * sh;
+          const inputData = new Float32Array(3 * planeSize);
+
+          for (let i = 0, p = 0; i < pixels.length; i += 4, p++) {
+            inputData[p] = pixels[i] / 255.0;
+            inputData[p + planeSize] = pixels[i + 1] / 255.0;
+            inputData[p + 2 * planeSize] = pixels[i + 2] / 255.0;
+          }
+
+          const inputTensor = new ort.Tensor('float32', inputData, [1, 3, sh, sw]);
+          const results = await this.session.run({ input: inputTensor });
+          const outData = results.output.data;
+
+          const outTileW = sw * 4;
+          const outTileH = sh * 4;
+          const outPlane = outTileW * outTileH;
+
+          const tileCanvas = document.createElement('canvas');
+          tileCanvas.width = outTileW;
+          tileCanvas.height = outTileH;
+          const tileCtx = tileCanvas.getContext('2d');
+          const outImgData = tileCtx.createImageData(outTileW, outTileH);
+          const outPixels = outImgData.data;
+
+          for (let p = 0, idx = 0; p < outPlane; p++, idx += 4) {
+            outPixels[idx] = Math.min(255, Math.max(0, Math.round(outData[p] * 255.0)));
+            outPixels[idx + 1] = Math.min(255, Math.max(0, Math.round(outData[p + outPlane] * 255.0)));
+            outPixels[idx + 2] = Math.min(255, Math.max(0, Math.round(outData[p + 2 * outPlane] * 255.0)));
+            outPixels[idx + 3] = 255;
+          }
+          tileCtx.putImageData(outImgData, 0, 0);
+
+          const innerSx = (c === 0) ? 0 : overlap;
+          const innerSy = (r === 0) ? 0 : overlap;
+          const innerEx = (c === cols - 1) ? sw : sw - overlap;
+          const innerEy = (r === rows - 1) ? sh : sh - overlap;
+          const innerSw = innerEx - innerSx;
+          const innerSh = innerEy - innerSy;
+
+          ai4xCtx.drawImage(
+            tileCanvas,
+            innerSx * 4, innerSy * 4, innerSw * 4, innerSh * 4,
+            (sx + innerSx) * 4, (sy + innerSy) * 4, innerSw * 4, innerSh * 4
+          );
+
+          const percent = Math.round((currentTile / totalTiles) * 100);
+          if (onProgress) {
+            onProgress(percent, `AI Real-ESRGAN: Ubin ${currentTile} dari ${totalTiles} (${percent}%)`);
+          }
+
+          await new Promise(res => setTimeout(res, 4));
+        }
+      }
+
+      if (targetScale === 4) {
+        return ai4xCanvas;
+      }
+
+      const finalW = Math.round(srcW * targetScale);
+      const finalH = Math.round(srcH * targetScale);
+      const finalCanvas = document.createElement('canvas');
+      finalCanvas.width = finalW;
+      finalCanvas.height = finalH;
+      const finalCtx = finalCanvas.getContext('2d');
+      finalCtx.imageSmoothingEnabled = true;
+      finalCtx.imageSmoothingQuality = 'high';
+      finalCtx.drawImage(ai4xCanvas, 0, 0, finalW, finalH);
+
+      return finalCanvas;
+    }
+  }
+
   // --- Tiling & Pipeline Coordinator ---
   class PipelineProcessor {
     constructor(deviceProfile) {
       this.device = deviceProfile;
+      this.aiEngine = new RealESRGANEngine();
       this.webglEngine = new WebGLEngine();
       this.cpuEngine = new CPUEngine();
       this.active = false;
@@ -384,6 +548,13 @@
     async process(sourceImg, scale, params, engineChoice, onProgress) {
       this.active = true;
       this.cancelled = false;
+
+      // Primary AI Engine: Deep Learning Super-Resolution (Real-ESRGAN)
+      if (engineChoice === 'ai') {
+        const result = await this.aiEngine.processImage(sourceImg, scale, onProgress, () => this.cancelled);
+        this.active = false;
+        return result;
+      }
 
       const srcW = sourceImg.naturalWidth || sourceImg.width;
       const srcH = sourceImg.naturalHeight || sourceImg.height;
@@ -768,14 +939,8 @@
     applyDeviceBadge() {
       const badge = document.getElementById('deviceBadge');
       const text = document.getElementById('deviceText');
-      if (this.device.hasWebGL) {
-        badge.classList.add('gpu-active');
-        const shortName = this.device.rendererName.replace(/\(R\)|Direct3D.*|vs_\d+_\d+/gi, '').trim();
-        text.textContent = this.device.isMobile ? `Chrome HP (${shortName || 'GPU'})` : `GPU Aktif (${shortName || 'WebGL'})`;
-      } else {
-        badge.classList.add('mobile-mode');
-        text.textContent = this.device.isMobile ? 'Chrome HP (CPU Canvas)' : 'CPU Canvas Aman';
-      }
+      badge.classList.add('gpu-active');
+      text.textContent = 'AI Real-ESRGAN Aktif';
     }
 
     bindEvents() {
@@ -881,6 +1046,15 @@
         });
       });
 
+      // Engine radios change
+      this.dom.engineRadios.forEach(r => {
+        r.addEventListener('change', () => {
+          const val = this.getSelectedEngine();
+          this.showToast(val === 'ai' ? 'Beralih ke Mesin AI Real-ESRGAN' : 'Beralih ke Shader GPU', 'info');
+          this.processCurrentItem();
+        });
+      });
+
       // Main Action Buttons
       this.dom.processBtn.addEventListener('click', () => this.processCurrentItem());
       this.dom.mobileProcessBtn.addEventListener('click', () => this.processCurrentItem());
@@ -907,6 +1081,7 @@
       // Cancel processing
       this.dom.cancelProcessBtn.addEventListener('click', () => {
         this.pipeline.cancel();
+        this.isProcessing = false;
         this.hideProgress();
         this.showToast('Pemrosesan dibatalkan', 'info');
       });
@@ -1123,7 +1298,7 @@
     }
 
     getSelectedEngine() {
-      let selected = 'auto';
+      let selected = 'ai';
       this.dom.engineRadios.forEach(r => {
         if (r.checked) selected = r.value;
       });

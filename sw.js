@@ -1,9 +1,10 @@
-const CACHE_NAME = 'optipixel-v1.0.0';
+const CACHE_NAME = 'optipixel-v2.0.0';
 const CORE_ASSETS = [
   './',
   './index.html',
   './style.css',
   './app.js',
+  './ort.all.min.js',
   './jszip.min.js',
   './manifest.json',
   './icon-192.png',
