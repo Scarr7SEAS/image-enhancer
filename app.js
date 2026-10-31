@@ -149,20 +149,22 @@
             vec3 minRGB = min(c, min(min(up, down), min(left, right)));
             vec3 maxRGB = max(c, max(max(up, down), max(left, right)));
 
+            // Bounded weight to prevent negative denominator and color inversion
             vec3 amp = clamp(min(minRGB, 1.0 - maxRGB) / max(maxRGB, 0.0001), 0.0, 1.0);
-            vec3 w = -sqrt(amp) * (uSharpness * 0.35);
+            vec3 w = -sqrt(amp) * (uSharpness * 0.125);
 
             vec3 casColor = ((up + down + left + right) * w + c) / (4.0 * w + 1.0);
 
             // Bilateral / Edge Denoising
             vec3 crossAvg = (up + down + left + right + c) * 0.2;
             float diff = length(c - crossAvg);
-            float denoiseWeight = smoothstep(0.12 * (1.0 - uEdgePreserve * 0.5), 0.0, diff) * uDenoise;
-            vec3 denoised = mix(casColor, crossAvg, denoiseWeight * 0.6);
+            float edgeThresh = 0.08 * (1.0 - uEdgePreserve * 0.5);
+            float denoiseFactor = smoothstep(edgeThresh, 0.0, diff) * (uDenoise * 0.6);
+            vec3 denoised = mix(casColor, crossAvg, denoiseFactor);
 
             // Micro-Contrast / Detail Recovery
-            vec3 laplacian = c - (up + down + left + right) * 0.25;
-            vec3 finalColor = denoised + laplacian * (uTextureClarity * 0.45);
+            vec3 highPass = c - crossAvg;
+            vec3 finalColor = denoised + highPass * (uTextureClarity * 0.35);
 
             gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), centerSample.a);
           }
@@ -238,7 +240,7 @@
       // Create texture from tile canvas
       const texture = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
 
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -362,7 +364,29 @@
       const tileSize = this.device.tileSize;
       const overlap = this.device.tileOverlap;
 
-      // Calculate tile count
+      // Fast single-pass execution if image fits comfortably within one tile
+      if (srcW <= tileSize && srcH <= tileSize) {
+        onProgress(40, 'Rekonstruksi pixel langsung...');
+        const tileCanvas = document.createElement('canvas');
+        tileCanvas.width = srcW;
+        tileCanvas.height = srcH;
+        const tileCtx = tileCanvas.getContext('2d');
+        tileCtx.drawImage(sourceImg, 0, 0, srcW, srcH);
+
+        let processedTile;
+        if (useWebGL) {
+          processedTile = this.webglEngine.renderTile(tileCanvas, dstW, dstH, params);
+        } else {
+          processedTile = this.cpuEngine.renderTile(tileCanvas, dstW, dstH, params);
+        }
+
+        finalCtx.drawImage(processedTile, 0, 0, dstW, dstH);
+        onProgress(100, 'Rekonstruksi pixel selesai!');
+        this.active = false;
+        return finalCanvas;
+      }
+
+      // Calculate tile count for larger images
       const cols = Math.ceil(srcW / tileSize);
       const rows = Math.ceil(srcH / tileSize);
       const totalTiles = cols * rows;
@@ -447,6 +471,7 @@
     constructor() {
       this.stage = document.getElementById('viewerStage');
       this.panContainer = document.getElementById('panContainer');
+      this.compareFrame = document.getElementById('compareFrame');
       this.splitWrapper = document.getElementById('splitComparisonWrapper');
       this.sideWrapper = document.getElementById('sideBySideWrapper');
       this.enhancedLayer = document.getElementById('layerEnhancedWrapper');
@@ -472,7 +497,6 @@
       this.initialPanY = 0;
 
       this.viewMode = 'split'; // 'split', 'side', 'blink'
-      this.isHoldingBlink = false;
 
       this.initEvents();
     }
@@ -487,7 +511,7 @@
 
       window.addEventListener('pointermove', (e) => {
         if (this.isDraggingDivider) {
-          const rect = this.splitWrapper.getBoundingClientRect();
+          const rect = (this.compareFrame || this.splitWrapper).getBoundingClientRect();
           let x = e.clientX - rect.left;
           x = Math.max(0, Math.min(rect.width, x));
           this.splitPos = (x / rect.width) * 100;
@@ -532,7 +556,6 @@
       }, { passive: false });
 
       // Blink / Hold view buttons
-      const tabBlink = document.getElementById('tabBlinkView');
       const startBlink = (e) => {
         if (this.viewMode !== 'blink') return;
         e.preventDefault();
@@ -561,8 +584,10 @@
     }
 
     updateSplitPosition() {
-      this.divider.style.left = `${this.splitPos}%`;
-      this.enhancedLayer.style.width = `${this.splitPos}%`;
+      const pct = Math.max(0, Math.min(100, this.splitPos));
+      if (this.compareFrame) {
+        this.compareFrame.style.setProperty('--split-pct', `${pct}%`);
+      }
     }
 
     resetZoomAndPan() {
@@ -594,8 +619,9 @@
         document.getElementById('tabSplitView').classList.add('active');
         this.splitWrapper.style.display = 'flex';
         this.sideWrapper.style.display = 'none';
-        this.enhancedLayer.style.opacity = '1';
+        this.updateSplitPosition();
         this.divider.style.display = 'block';
+        this.enhancedLayer.style.opacity = '1';
       } else if (mode === 'side') {
         document.getElementById('tabSideView').classList.add('active');
         this.splitWrapper.style.display = 'none';
@@ -605,7 +631,9 @@
         this.splitWrapper.style.display = 'flex';
         this.sideWrapper.style.display = 'none';
         this.divider.style.display = 'none';
-        this.enhancedLayer.style.width = '100%';
+        if (this.compareFrame) {
+          this.compareFrame.style.setProperty('--split-pct', '0%');
+        }
         this.enhancedLayer.style.opacity = '1';
       }
     }

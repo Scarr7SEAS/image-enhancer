@@ -237,31 +237,33 @@
               <!-- Split Comparison Container -->
               <div id="splitComparisonWrapper" class="split-comparison-wrapper">
                 <div id="panContainer" class="pan-container">
-                  <!-- Original Image (Bottom Layer) -->
-                  <div class="image-layer layer-original">
-                    <img id="imgOriginal" alt="Foto Asli" draggable="false">
-                    <div class="layer-tag tag-left">Asli</div>
-                  </div>
+                  <div id="compareFrame" class="compare-frame">
+                    <!-- Base Layer: Original Image (defines aspect ratio and natural dimensions) -->
+                    <img id="imgOriginal" class="compare-img compare-base" alt="Foto Asli" draggable="false">
 
-                  <!-- Enhanced Image (Top Layer, Clipped via width) -->
-                  <div id="layerEnhancedWrapper" class="image-layer layer-enhanced">
-                    <img id="imgEnhanced" alt="Foto Diperbaiki" draggable="false">
-                    <div class="layer-tag tag-right">OptiPixel</div>
-                  </div>
-
-                  <!-- Draggable Split Divider Line & Handle -->
-                  <div id="splitDivider" class="split-divider" style="left: 50%;">
-                    <div class="divider-line"></div>
-                    <div class="divider-handle" aria-label="Geser untuk membandingkan foto">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="15 18 9 12 15 6"></polyline>
-                        <polyline points="9 18 3 12 9 6"></polyline>
-                      </svg>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="9 18 15 12 9 6"></polyline>
-                        <polyline points="15 18 21 12 15 6"></polyline>
-                      </svg>
+                    <!-- Overlay Layer: Enhanced Image (clipped via CSS polygon) -->
+                    <div id="layerEnhancedWrapper" class="compare-overlay">
+                      <img id="imgEnhanced" class="compare-img compare-top" alt="Foto Diperbaiki" draggable="false">
                     </div>
+
+                    <!-- Draggable Split Divider Line & Knob -->
+                    <div id="splitDivider" class="split-divider">
+                      <div class="divider-line"></div>
+                      <div class="divider-knob" aria-label="Geser untuk membandingkan foto">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <polyline points="15 18 9 12 15 6"></polyline>
+                          <polyline points="9 18 3 12 9 6"></polyline>
+                        </svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                          <polyline points="15 18 21 12 15 6"></polyline>
+                        </svg>
+                      </div>
+                    </div>
+
+                    <!-- Floating Badges inside frame -->
+                    <div class="layer-tag tag-left">Asli</div>
+                    <div class="layer-tag tag-right">OptiPixel</div>
                   </div>
                 </div>
               </div>
