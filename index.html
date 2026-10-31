@@ -321,10 +321,74 @@
             
             <div class="controls-card-header">
               <h2 class="controls-title">Pengaturan Rekonstruksi Pixel</h2>
-              <span class="controls-desc">Pilih tingkat pembesaran dan atur parameter perbaikan pixel.</span>
+              <span class="controls-desc">Pilih mesin AI, tingkat pembesaran, dan parameter perbaikan.</span>
             </div>
 
-            <!-- Section 1: Upscale Factor (1x, 2x, 3x, 4x) -->
+            <!-- Section 1: Engine Mode Option -->
+            <div class="setting-group device-mode-box">
+              <label class="setting-label">
+                <span>Pilih Mesin Pemrosesan</span>
+                <span class="meta-badge badge-target" style="font-size: 11px;">Deep Learning AI</span>
+              </label>
+              <div class="engine-toggle-row">
+                <label class="radio-chip">
+                  <input type="radio" name="engineMode" value="espcn" checked>
+                  <span class="chip-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                    <div class="chip-text-group">
+                      <span class="chip-title">AI Ultra-Ringan ESPCN / FSRCNN (Rekomendasi HP)</span>
+                      <span class="chip-sub">Deep Learning Cepat &bull; Ukuran 99 KB &bull; Selesai 1 Detik di HP</span>
+                    </div>
+                  </span>
+                </label>
+                <label class="radio-chip">
+                  <input type="radio" name="engineMode" value="ai">
+                  <span class="chip-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                      <polyline points="2 17 12 22 22 17"></polyline>
+                      <polyline points="2 12 12 17 22 12"></polyline>
+                    </svg>
+                    <div class="chip-text-group">
+                      <span class="chip-title">AI Real-ESRGAN (Super-Resolution Berat)</span>
+                      <span class="chip-sub">Model Neural 4.6 MB &bull; Kualitas Maksimal (Cocok untuk Laptop/PC)</span>
+                    </div>
+                  </span>
+                </label>
+                <label class="radio-chip">
+                  <input type="radio" name="engineMode" value="webgl">
+                  <span class="chip-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+                      <line x1="7" y1="2" x2="7" y2="22"></line>
+                      <line x1="17" y1="2" x2="17" y2="22"></line>
+                      <line x1="2" y1="12" x2="22" y2="12"></line>
+                    </svg>
+                    <div class="chip-text-group">
+                      <span class="chip-title">Shader GPU Cepat (AMD CAS + Sobel)</span>
+                      <span class="chip-sub">Filter Matematika &bull; Instan &bull; Rekonstruksi Tepi</span>
+                    </div>
+                  </span>
+                </label>
+                <label class="radio-chip">
+                  <input type="radio" name="engineMode" value="cpu">
+                  <span class="chip-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+                      <rect x="9" y="9" width="6" height="6"></rect>
+                    </svg>
+                    <div class="chip-text-group">
+                      <span class="chip-title">CPU Canvas Dasar</span>
+                      <span class="chip-sub">Kompatibilitas Komputer Lama</span>
+                    </div>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Section 2: Upscale Factor (1x, 2x, 3x, 4x) -->
             <div class="setting-group">
               <label class="setting-label">
                 <span>Tingkat Pembesaran Skala</span>
@@ -415,56 +479,7 @@
 
             </div>
 
-            <!-- Section 4: Engine Mode Option -->
-            <div class="setting-group device-mode-box">
-              <label class="setting-label">
-                <span>Mesin Pemrosesan</span>
-                <span class="meta-badge badge-target" style="font-size: 11px;">Deep Learning AI</span>
-              </label>
-              <div class="engine-toggle-row">
-                <label class="radio-chip">
-                  <input type="radio" name="engineMode" value="ai" checked>
-                  <span class="chip-content">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-                      <polyline points="2 17 12 22 22 17"></polyline>
-                      <polyline points="2 12 12 17 22 12"></polyline>
-                    </svg>
-                    <div class="chip-text-group">
-                      <span class="chip-title">AI Real-ESRGAN (Super-Resolution Otentik)</span>
-                      <span class="chip-sub">Model Neural Network Deep Learning (Kualitas HD Seperti Bugatti)</span>
-                    </div>
-                  </span>
-                </label>
-                <label class="radio-chip">
-                  <input type="radio" name="engineMode" value="webgl">
-                  <span class="chip-content">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                    </svg>
-                    <div class="chip-text-group">
-                      <span class="chip-title">Shader GPU Cepat (AMD CAS + Sobel)</span>
-                      <span class="chip-sub">Instan 1 Detik &bull; Hemat Baterai &bull; Rekonstruksi Tepi</span>
-                    </div>
-                  </span>
-                </label>
-                <label class="radio-chip">
-                  <input type="radio" name="engineMode" value="cpu">
-                  <span class="chip-content">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="4" y="4" width="16" height="16" rx="2"></rect>
-                      <rect x="9" y="9" width="6" height="6"></rect>
-                    </svg>
-                    <div class="chip-text-group">
-                      <span class="chip-title">CPU Canvas Dasar</span>
-                      <span class="chip-sub">Kompatibilitas Komputer Lama</span>
-                    </div>
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            <!-- Section 5: Format Output & Export -->
+            <!-- Section 4: Format Output & Export -->
             <div class="setting-group">
               <label class="setting-label">
                 <span>Format File Output</span>

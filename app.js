@@ -530,10 +530,192 @@
     }
   }
 
+  // --- ESPCN / FSRCNN Ultra-Light Mobile AI Engine ---
+  class ESPCNEngine {
+    constructor() {
+      this.session = null;
+      this.isLoading = false;
+      this.modelUrl = './models/espcn-x4.onnx';
+    }
+
+    async init(onProgress) {
+      if (this.session) return this.session;
+      if (this.isLoading) {
+        while (this.isLoading) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+        return this.session;
+      }
+
+      this.isLoading = true;
+      if (onProgress) onProgress(20, 'Memuat model AI Ultra-Ringan ESPCN (99 KB)...');
+
+      try {
+        if (typeof ort === 'undefined') {
+          throw new Error('Library ONNX Runtime Web belum tersedia');
+        }
+
+        ort.env.wasm.wasmPaths = './';
+        ort.env.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency || 2);
+
+        this.session = await ort.InferenceSession.create(this.modelUrl, {
+          executionProviders: ['wasm']
+        });
+
+        this.isLoading = false;
+        return this.session;
+      } catch (err) {
+        this.isLoading = false;
+        console.error('Failed to load ESPCN model:', err);
+        throw err;
+      }
+    }
+
+    async processImage(sourceImg, targetScale, onProgress, checkCancelled) {
+      await this.init(onProgress);
+
+      const srcW = sourceImg.naturalWidth || sourceImg.width;
+      const srcH = sourceImg.naturalHeight || sourceImg.height;
+
+      if (onProgress) onProgress(35, 'Memproses AI ESPCN 4x...');
+
+      // Pad dimensions to multiples of 4 if needed
+      const padW = Math.ceil(srcW / 4) * 4;
+      const padH = Math.ceil(srcH / 4) * 4;
+
+      const srcCanvas = document.createElement('canvas');
+      srcCanvas.width = padW;
+      srcCanvas.height = padH;
+      const srcCtx = srcCanvas.getContext('2d');
+      srcCtx.drawImage(sourceImg, 0, 0);
+
+      const imgData = srcCtx.getImageData(0, 0, padW, padH);
+      const pixels = imgData.data;
+      const totalPixels = padW * padH;
+
+      const yPlane = new Float32Array(totalPixels);
+      const cbCanvas = document.createElement('canvas');
+      cbCanvas.width = padW;
+      cbCanvas.height = padH;
+      const cbCtx = cbCanvas.getContext('2d');
+      const cbImgData = cbCtx.createImageData(padW, padH);
+      const cbData = cbImgData.data;
+
+      const crCanvas = document.createElement('canvas');
+      crCanvas.width = padW;
+      crCanvas.height = padH;
+      const crCtx = crCanvas.getContext('2d');
+      const crImgData = crCtx.createImageData(padW, padH);
+      const crData = crImgData.data;
+
+      for (let i = 0, p = 0; i < pixels.length; i += 4, p++) {
+        const r = pixels[i];
+        const g = pixels[i + 1];
+        const b = pixels[i + 2];
+
+        // Luminance Y in [0, 1] for neural input
+        yPlane[p] = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+
+        const cb = -0.168736 * r - 0.331264 * g + 0.5 * b + 128;
+        const cr = 0.5 * r - 0.418688 * g - 0.081312 * b + 128;
+
+        cbData[i] = cb; cbData[i + 1] = cb; cbData[i + 2] = cb; cbData[i + 3] = 255;
+        crData[i] = cr; crData[i + 1] = cr; crData[i + 2] = cr; crData[i + 3] = 255;
+      }
+      cbCtx.putImageData(cbImgData, 0, 0);
+      crCtx.putImageData(crImgData, 0, 0);
+
+      if (checkCancelled && checkCancelled()) throw new Error('PROSES_DIBATALKAN');
+
+      const outPadW = padW * 4;
+      const outPadH = padH * 4;
+
+      // 4x Bicubic upscale of chroma channels
+      const cb4x = document.createElement('canvas');
+      cb4x.width = outPadW; cb4x.height = outPadH;
+      const cb4xCtx = cb4x.getContext('2d');
+      cb4xCtx.imageSmoothingEnabled = true;
+      cb4xCtx.imageSmoothingQuality = 'high';
+      cb4xCtx.drawImage(cbCanvas, 0, 0, outPadW, outPadH);
+      const cb4xData = cb4xCtx.getImageData(0, 0, outPadW, outPadH).data;
+
+      const cr4x = document.createElement('canvas');
+      cr4x.width = outPadW; cr4x.height = outPadH;
+      const cr4xCtx = cr4x.getContext('2d');
+      cr4xCtx.imageSmoothingEnabled = true;
+      cr4xCtx.imageSmoothingQuality = 'high';
+      cr4xCtx.drawImage(crCanvas, 0, 0, outPadW, outPadH);
+      const cr4xData = cr4xCtx.getImageData(0, 0, outPadW, outPadH).data;
+
+      if (onProgress) onProgress(60, 'Menjalankan inferensi Neural Network ESPCN...');
+      await new Promise(r => setTimeout(r, 4));
+
+      // Run ESPCN model on Y channel
+      const inputTensor = new ort.Tensor('float32', yPlane, [1, 1, padH, padW]);
+      const results = await this.session.run({ input: inputTensor });
+      const outY = results.output.data;
+
+      if (onProgress) onProgress(85, 'Menggabungkan warna RGB...');
+
+      const ai4xW = srcW * 4;
+      const ai4xH = srcH * 4;
+      const ai4xCanvas = document.createElement('canvas');
+      ai4xCanvas.width = ai4xW;
+      ai4xCanvas.height = ai4xH;
+      const ai4xCtx = ai4xCanvas.getContext('2d');
+      const finalImgData = ai4xCtx.createImageData(ai4xW, ai4xH);
+      const outPixels = finalImgData.data;
+
+      // Convert high-res Y + CbCr back to RGB
+      for (let y = 0; y < ai4xH; y++) {
+        const rowSrc = y * outPadW;
+        const rowDst = y * ai4xW;
+        for (let x = 0; x < ai4xW; x++) {
+          const p = rowSrc + x;
+          const idx = (rowDst + x) * 4;
+
+          const yVal = outY[p] * 255.0;
+          const cb = cb4xData[p * 4] - 128;
+          const cr = cr4xData[p * 4] - 128;
+
+          const r = yVal + 1.402 * cr;
+          const g = yVal - 0.344136 * cb - 0.714136 * cr;
+          const b = yVal + 1.772 * cb;
+
+          outPixels[idx] = Math.min(255, Math.max(0, Math.round(r)));
+          outPixels[idx + 1] = Math.min(255, Math.max(0, Math.round(g)));
+          outPixels[idx + 2] = Math.min(255, Math.max(0, Math.round(b)));
+          outPixels[idx + 3] = 255;
+        }
+      }
+      ai4xCtx.putImageData(finalImgData, 0, 0);
+
+      if (targetScale === 4) {
+        if (onProgress) onProgress(100, 'Selesai!');
+        return ai4xCanvas;
+      }
+
+      // If user selected 1x, 2x, or 3x
+      const finalW = Math.round(srcW * targetScale);
+      const finalH = Math.round(srcH * targetScale);
+      const finalCanvas = document.createElement('canvas');
+      finalCanvas.width = finalW;
+      finalCanvas.height = finalH;
+      const finalCtx = finalCanvas.getContext('2d');
+      finalCtx.imageSmoothingEnabled = true;
+      finalCtx.imageSmoothingQuality = 'high';
+      finalCtx.drawImage(ai4xCanvas, 0, 0, finalW, finalH);
+
+      if (onProgress) onProgress(100, 'Selesai!');
+      return finalCanvas;
+    }
+  }
+
   // --- Tiling & Pipeline Coordinator ---
   class PipelineProcessor {
     constructor(deviceProfile) {
       this.device = deviceProfile;
+      this.espcnEngine = new ESPCNEngine();
       this.aiEngine = new RealESRGANEngine();
       this.webglEngine = new WebGLEngine();
       this.cpuEngine = new CPUEngine();
@@ -549,7 +731,14 @@
       this.active = true;
       this.cancelled = false;
 
-      // Primary AI Engine: Deep Learning Super-Resolution (Real-ESRGAN)
+      // Ultra-Fast Mobile AI Engine: ESPCN / FSRCNN
+      if (engineChoice === 'espcn') {
+        const result = await this.espcnEngine.processImage(sourceImg, scale, onProgress, () => this.cancelled);
+        this.active = false;
+        return result;
+      }
+
+      // Heavy Deep Learning Super-Resolution Engine: Real-ESRGAN
       if (engineChoice === 'ai') {
         const result = await this.aiEngine.processImage(sourceImg, scale, onProgress, () => this.cancelled);
         this.active = false;
@@ -1050,7 +1239,10 @@
       this.dom.engineRadios.forEach(r => {
         r.addEventListener('change', () => {
           const val = this.getSelectedEngine();
-          this.showToast(val === 'ai' ? 'Beralih ke Mesin AI Real-ESRGAN' : 'Beralih ke Shader GPU', 'info');
+          const label = val === 'espcn' ? 'Beralih ke AI Ultra-Ringan (ESPCN / FSRCNN)' :
+                        val === 'ai' ? 'Beralih ke AI Real-ESRGAN (Berat)' :
+                        val === 'webgl' ? 'Beralih ke Shader GPU Cepat' : 'Beralih ke CPU Canvas';
+          this.showToast(label, 'info');
           this.processCurrentItem();
         });
       });
@@ -1298,7 +1490,7 @@
     }
 
     getSelectedEngine() {
-      let selected = 'ai';
+      let selected = 'espcn';
       this.dom.engineRadios.forEach(r => {
         if (r.checked) selected = r.value;
       });
@@ -1549,5 +1741,22 @@
   // --- Bootstrap on DOM Ready ---
   document.addEventListener('DOMContentLoaded', () => {
     window.optiPixel = new App();
+
+    // Sembunyikan dan hapus paksa Netlify Drawer widget jika diinjeksikan
+    const removeNetlifyWidgets = () => {
+      const selectors = [
+        'netlify-drawer', '#netlify-drawer', '.netlify-drawer',
+        '[data-netlify-drawer]', 'div[class*="netlify-drawer"]',
+        'iframe[src*="netlify"]', 'div[id*="netlify-feedback"]',
+        'div[class*="netlify-feedback"]', '.feedback-widget',
+        '[aria-label="Netlify Drawer"]'
+      ];
+      selectors.forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => el.remove());
+      });
+    };
+
+    removeNetlifyWidgets();
+    setInterval(removeNetlifyWidgets, 800);
   });
 })();

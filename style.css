@@ -1665,3 +1665,28 @@ body.theme-dark .tech-card-icon {
     font-size: 9px;
   }
 }
+
+/* ==========================================================================
+   Sembunyikan Paksa Watermark / Widget Netlify Drawer
+   ========================================================================== */
+netlify-drawer,
+#netlify-drawer,
+.netlify-drawer,
+[data-netlify-drawer],
+div[class*="netlify-drawer"],
+iframe[src*="netlify"],
+div[id*="netlify-feedback"],
+div[class*="netlify-feedback"],
+.feedback-widget,
+[aria-label="Netlify Drawer"] {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  top: -9999px !important;
+  left: -9999px !important;
+  z-index: -9999 !important;
+}
