@@ -369,7 +369,8 @@
 
   // --- Real-ESRGAN Deep Learning AI Engine ---
   class RealESRGANEngine {
-    constructor() {
+    constructor(deviceProfile) {
+      this.device = deviceProfile || { isMobile: false, ramGB: 4 };
       this.session = null;
       this.isLoading = false;
       this.modelUrl = './models/realesr-general-x4v3.onnx';
@@ -412,15 +413,37 @@
     async processImage(sourceImg, targetScale, onProgress, checkCancelled) {
       await this.init(onProgress);
 
-      const srcW = sourceImg.naturalWidth || sourceImg.width;
-      const srcH = sourceImg.naturalHeight || sourceImg.height;
+      const origW = sourceImg.naturalWidth || sourceImg.width;
+      const origH = sourceImg.naturalHeight || sourceImg.height;
+
+      // Safe dimension limit for Real-ESRGAN (compute-intensive)
+      const maxSafeDim = (this.device && this.device.isMobile) ? 2048 : 4096;
+      let srcW = origW;
+      let srcH = origH;
+      let workingSource = sourceImg;
+
+      const maxSrcDim = Math.floor(maxSafeDim / targetScale);
+      if (srcW > maxSrcDim || srcH > maxSrcDim) {
+        const ratio = Math.min(maxSrcDim / srcW, maxSrcDim / srcH);
+        srcW = Math.max(4, Math.floor((origW * ratio) / 4) * 4);
+        srcH = Math.max(4, Math.floor((origH * ratio) / 4) * 4);
+
+        const downCanvas = document.createElement('canvas');
+        downCanvas.width = srcW;
+        downCanvas.height = srcH;
+        const downCtx = downCanvas.getContext('2d');
+        downCtx.imageSmoothingEnabled = true;
+        downCtx.imageSmoothingQuality = 'high';
+        downCtx.drawImage(sourceImg, 0, 0, srcW, srcH);
+        workingSource = downCanvas;
+      }
 
       // Source staging canvas
       const srcCanvas = document.createElement('canvas');
       srcCanvas.width = srcW;
       srcCanvas.height = srcH;
       const srcCtx = srcCanvas.getContext('2d');
-      srcCtx.drawImage(sourceImg, 0, 0);
+      srcCtx.drawImage(workingSource, 0, 0);
 
       // AI native 4x canvas
       const ai4xCanvas = document.createElement('canvas');
@@ -532,7 +555,8 @@
 
   // --- ESPCN / FSRCNN Ultra-Light Mobile AI Engine ---
   class ESPCNEngine {
-    constructor() {
+    constructor(deviceProfile) {
+      this.device = deviceProfile || { isMobile: false, ramGB: 4 };
       this.session = null;
       this.isLoading = false;
       this.modelUrl = './models/espcn-x4.onnx';
@@ -548,7 +572,7 @@
       }
 
       this.isLoading = true;
-      if (onProgress) onProgress(20, 'Memuat model AI Ultra-Ringan ESPCN (99 KB)...');
+      if (onProgress) onProgress(15, 'Memuat model AI Ultra-Ringan ESPCN (99 KB)...');
 
       try {
         if (typeof ort === 'undefined') {
@@ -574,128 +598,182 @@
     async processImage(sourceImg, targetScale, onProgress, checkCancelled) {
       await this.init(onProgress);
 
-      const srcW = sourceImg.naturalWidth || sourceImg.width;
-      const srcH = sourceImg.naturalHeight || sourceImg.height;
+      const origW = sourceImg.naturalWidth || sourceImg.width;
+      const origH = sourceImg.naturalHeight || sourceImg.height;
 
-      if (onProgress) onProgress(35, 'Memproses AI ESPCN 4x...');
+      // Safe dimension limit for mobile Chrome RAM and WebGL limits
+      const maxSafeDim = (this.device && this.device.isMobile) ? 4096 : 6144;
+      let srcW = origW;
+      let srcH = origH;
+      let workingSource = sourceImg;
 
-      // Pad dimensions to multiples of 4 if needed
-      const padW = Math.ceil(srcW / 4) * 4;
-      const padH = Math.ceil(srcH / 4) * 4;
+      const maxSrcDim = Math.floor(maxSafeDim / targetScale);
+      if (srcW > maxSrcDim || srcH > maxSrcDim) {
+        const ratio = Math.min(maxSrcDim / srcW, maxSrcDim / srcH);
+        srcW = Math.max(4, Math.floor((origW * ratio) / 4) * 4);
+        srcH = Math.max(4, Math.floor((origH * ratio) / 4) * 4);
+
+        const downCanvas = document.createElement('canvas');
+        downCanvas.width = srcW;
+        downCanvas.height = srcH;
+        const downCtx = downCanvas.getContext('2d');
+        downCtx.imageSmoothingEnabled = true;
+        downCtx.imageSmoothingQuality = 'high';
+        downCtx.drawImage(sourceImg, 0, 0, srcW, srcH);
+        workingSource = downCanvas;
+      }
+
+      // Ensure base dimensions are multiples of 4
+      const padW = Math.max(4, Math.floor(srcW / 4) * 4);
+      const padH = Math.max(4, Math.floor(srcH / 4) * 4);
 
       const srcCanvas = document.createElement('canvas');
       srcCanvas.width = padW;
       srcCanvas.height = padH;
       const srcCtx = srcCanvas.getContext('2d');
-      srcCtx.drawImage(sourceImg, 0, 0);
+      srcCtx.drawImage(workingSource, 0, 0, padW, padH);
 
-      const imgData = srcCtx.getImageData(0, 0, padW, padH);
-      const pixels = imgData.data;
-      const totalPixels = padW * padH;
-
-      const yPlane = new Float32Array(totalPixels);
-      const cbCanvas = document.createElement('canvas');
-      cbCanvas.width = padW;
-      cbCanvas.height = padH;
-      const cbCtx = cbCanvas.getContext('2d');
-      const cbImgData = cbCtx.createImageData(padW, padH);
-      const cbData = cbImgData.data;
-
-      const crCanvas = document.createElement('canvas');
-      crCanvas.width = padW;
-      crCanvas.height = padH;
-      const crCtx = crCanvas.getContext('2d');
-      const crImgData = crCtx.createImageData(padW, padH);
-      const crData = crImgData.data;
-
-      for (let i = 0, p = 0; i < pixels.length; i += 4, p++) {
-        const r = pixels[i];
-        const g = pixels[i + 1];
-        const b = pixels[i + 2];
-
-        // Luminance Y in [0, 1] for neural input
-        yPlane[p] = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
-
-        const cb = -0.168736 * r - 0.331264 * g + 0.5 * b + 128;
-        const cr = 0.5 * r - 0.418688 * g - 0.081312 * b + 128;
-
-        cbData[i] = cb; cbData[i + 1] = cb; cbData[i + 2] = cb; cbData[i + 3] = 255;
-        crData[i] = cr; crData[i + 1] = cr; crData[i + 2] = cr; crData[i + 3] = 255;
-      }
-      cbCtx.putImageData(cbImgData, 0, 0);
-      crCtx.putImageData(crImgData, 0, 0);
-
-      if (checkCancelled && checkCancelled()) throw new Error('PROSES_DIBATALKAN');
-
-      const outPadW = padW * 4;
-      const outPadH = padH * 4;
-
-      // 4x Bicubic upscale of chroma channels
-      const cb4x = document.createElement('canvas');
-      cb4x.width = outPadW; cb4x.height = outPadH;
-      const cb4xCtx = cb4x.getContext('2d');
-      cb4xCtx.imageSmoothingEnabled = true;
-      cb4xCtx.imageSmoothingQuality = 'high';
-      cb4xCtx.drawImage(cbCanvas, 0, 0, outPadW, outPadH);
-      const cb4xData = cb4xCtx.getImageData(0, 0, outPadW, outPadH).data;
-
-      const cr4x = document.createElement('canvas');
-      cr4x.width = outPadW; cr4x.height = outPadH;
-      const cr4xCtx = cr4x.getContext('2d');
-      cr4xCtx.imageSmoothingEnabled = true;
-      cr4xCtx.imageSmoothingQuality = 'high';
-      cr4xCtx.drawImage(crCanvas, 0, 0, outPadW, outPadH);
-      const cr4xData = cr4xCtx.getImageData(0, 0, outPadW, outPadH).data;
-
-      if (onProgress) onProgress(60, 'Menjalankan inferensi Neural Network ESPCN...');
-      await new Promise(r => setTimeout(r, 4));
-
-      // Run ESPCN model on Y channel
-      const inputTensor = new ort.Tensor('float32', yPlane, [1, 1, padH, padW]);
-      const results = await this.session.run({ input: inputTensor });
-      const outY = results.output.data;
-
-      if (onProgress) onProgress(85, 'Menggabungkan warna RGB...');
-
-      const ai4xW = srcW * 4;
-      const ai4xH = srcH * 4;
+      const outW = padW * 4;
+      const outH = padH * 4;
       const ai4xCanvas = document.createElement('canvas');
-      ai4xCanvas.width = ai4xW;
-      ai4xCanvas.height = ai4xH;
+      ai4xCanvas.width = outW;
+      ai4xCanvas.height = outH;
       const ai4xCtx = ai4xCanvas.getContext('2d');
-      const finalImgData = ai4xCtx.createImageData(ai4xW, ai4xH);
-      const outPixels = finalImgData.data;
 
-      // Convert high-res Y + CbCr back to RGB
-      for (let y = 0; y < ai4xH; y++) {
-        const rowSrc = y * outPadW;
-        const rowDst = y * ai4xW;
-        for (let x = 0; x < ai4xW; x++) {
-          const p = rowSrc + x;
-          const idx = (rowDst + x) * 4;
+      const tileSize = (this.device && this.device.isMobile) ? 160 : 192;
+      const overlap = 8;
+      const cols = Math.ceil(padW / tileSize);
+      const rows = Math.ceil(padH / tileSize);
+      const totalTiles = cols * rows;
 
-          const yVal = outY[p] * 255.0;
-          const cb = cb4xData[p * 4] - 128;
-          const cr = cr4xData[p * 4] - 128;
+      let currentTile = 0;
 
-          const r = yVal + 1.402 * cr;
-          const g = yVal - 0.344136 * cb - 0.714136 * cr;
-          const b = yVal + 1.772 * cb;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (checkCancelled && checkCancelled()) {
+            throw new Error('PROSES_DIBATALKAN');
+          }
 
-          outPixels[idx] = Math.min(255, Math.max(0, Math.round(r)));
-          outPixels[idx + 1] = Math.min(255, Math.max(0, Math.round(g)));
-          outPixels[idx + 2] = Math.min(255, Math.max(0, Math.round(b)));
-          outPixels[idx + 3] = 255;
+          currentTile++;
+
+          const sx = Math.max(0, c * tileSize - overlap);
+          const sy = Math.max(0, r * tileSize - overlap);
+          const ex = Math.min(padW, (c + 1) * tileSize + overlap);
+          const ey = Math.min(padH, (r + 1) * tileSize + overlap);
+          let sw = ex - sx;
+          let sh = ey - sy;
+
+          sw = Math.max(4, Math.floor(sw / 4) * 4);
+          sh = Math.max(4, Math.floor(sh / 4) * 4);
+          if (sw <= 0 || sh <= 0) continue;
+
+          const tileImgData = srcCtx.getImageData(sx, sy, sw, sh);
+          const pixels = tileImgData.data;
+          const totalPixels = sw * sh;
+
+          const yPlane = new Float32Array(totalPixels);
+          const cbCanvas = document.createElement('canvas');
+          cbCanvas.width = sw; cbCanvas.height = sh;
+          const cbCtx = cbCanvas.getContext('2d');
+          const cbImgData = cbCtx.createImageData(sw, sh);
+          const cbData = cbImgData.data;
+
+          const crCanvas = document.createElement('canvas');
+          crCanvas.width = sw; crCanvas.height = sh;
+          const crCtx = crCanvas.getContext('2d');
+          const crImgData = crCtx.createImageData(sw, sh);
+          const crData = crImgData.data;
+
+          for (let i = 0, p = 0; i < pixels.length; i += 4, p++) {
+            const red = pixels[i];
+            const green = pixels[i + 1];
+            const blue = pixels[i + 2];
+
+            yPlane[p] = (0.299 * red + 0.587 * green + 0.114 * blue) / 255.0;
+            const cb = -0.168736 * red - 0.331264 * green + 0.5 * blue + 128;
+            const cr = 0.5 * red - 0.418688 * green - 0.081312 * blue + 128;
+
+            cbData[i] = cb; cbData[i + 1] = cb; cbData[i + 2] = cb; cbData[i + 3] = 255;
+            crData[i] = cr; crData[i + 1] = cr; crData[i + 2] = cr; crData[i + 3] = 255;
+          }
+          cbCtx.putImageData(cbImgData, 0, 0);
+          crCtx.putImageData(crImgData, 0, 0);
+
+          const outTileW = sw * 4;
+          const outTileH = sh * 4;
+
+          const cb4x = document.createElement('canvas');
+          cb4x.width = outTileW; cb4x.height = outTileH;
+          const cb4xCtx = cb4x.getContext('2d');
+          cb4xCtx.imageSmoothingEnabled = true;
+          cb4xCtx.imageSmoothingQuality = 'high';
+          cb4xCtx.drawImage(cbCanvas, 0, 0, outTileW, outTileH);
+          const cb4xData = cb4xCtx.getImageData(0, 0, outTileW, outTileH).data;
+
+          const cr4x = document.createElement('canvas');
+          cr4x.width = outTileW; cr4x.height = outTileH;
+          const cr4xCtx = cr4x.getContext('2d');
+          cr4xCtx.imageSmoothingEnabled = true;
+          cr4xCtx.imageSmoothingQuality = 'high';
+          cr4xCtx.drawImage(crCanvas, 0, 0, outTileW, outTileH);
+          const cr4xData = cr4xCtx.getImageData(0, 0, outTileW, outTileH).data;
+
+          const inputTensor = new ort.Tensor('float32', yPlane, [1, 1, sh, sw]);
+          const results = await this.session.run({ input: inputTensor });
+          const outY = results.output.data;
+
+          const tileOutCanvas = document.createElement('canvas');
+          tileOutCanvas.width = outTileW;
+          tileOutCanvas.height = outTileH;
+          const tileOutCtx = tileOutCanvas.getContext('2d');
+          const tileFinalImgData = tileOutCtx.createImageData(outTileW, outTileH);
+          const tileOutPixels = tileFinalImgData.data;
+
+          for (let y = 0; y < outTileH; y++) {
+            const rowSrc = y * outTileW;
+            for (let x = 0; x < outTileW; x++) {
+              const p = rowSrc + x;
+              const idx = p * 4;
+              const yVal = outY[p] * 255.0;
+              const cb = cb4xData[idx] - 128;
+              const cr = cr4xData[idx] - 128;
+
+              tileOutPixels[idx] = Math.min(255, Math.max(0, Math.round(yVal + 1.402 * cr)));
+              tileOutPixels[idx + 1] = Math.min(255, Math.max(0, Math.round(yVal - 0.344136 * cb - 0.714136 * cr)));
+              tileOutPixels[idx + 2] = Math.min(255, Math.max(0, Math.round(yVal + 1.772 * cb)));
+              tileOutPixels[idx + 3] = 255;
+            }
+          }
+          tileOutCtx.putImageData(tileFinalImgData, 0, 0);
+
+          const innerSx = (c === 0) ? 0 : overlap;
+          const innerSy = (r === 0) ? 0 : overlap;
+          const innerEx = (c === cols - 1) ? sw : sw - overlap;
+          const innerEy = (r === rows - 1) ? sh : sh - overlap;
+          const innerSw = innerEx - innerSx;
+          const innerSh = innerEy - innerSy;
+
+          ai4xCtx.drawImage(
+            tileOutCanvas,
+            innerSx * 4, innerSy * 4, innerSw * 4, innerSh * 4,
+            (sx + innerSx) * 4, (sy + innerSy) * 4, innerSw * 4, innerSh * 4
+          );
+
+          const percent = Math.round((currentTile / totalTiles) * 100);
+          if (onProgress) {
+            onProgress(percent, `AI ESPCN: Ubin ${currentTile} dari ${totalTiles} (${percent}%)`);
+          }
+
+          // Crucial: Yield to UI thread to prevent mobile Chrome tab freeze
+          await new Promise(res => setTimeout(res, 2));
         }
       }
-      ai4xCtx.putImageData(finalImgData, 0, 0);
 
       if (targetScale === 4) {
         if (onProgress) onProgress(100, 'Selesai!');
         return ai4xCanvas;
       }
 
-      // If user selected 1x, 2x, or 3x
       const finalW = Math.round(srcW * targetScale);
       const finalH = Math.round(srcH * targetScale);
       const finalCanvas = document.createElement('canvas');
@@ -715,8 +793,8 @@
   class PipelineProcessor {
     constructor(deviceProfile) {
       this.device = deviceProfile;
-      this.espcnEngine = new ESPCNEngine();
-      this.aiEngine = new RealESRGANEngine();
+      this.espcnEngine = new ESPCNEngine(deviceProfile);
+      this.aiEngine = new RealESRGANEngine(deviceProfile);
       this.webglEngine = new WebGLEngine();
       this.cpuEngine = new CPUEngine();
       this.active = false;
@@ -745,8 +823,31 @@
         return result;
       }
 
-      const srcW = sourceImg.naturalWidth || sourceImg.width;
-      const srcH = sourceImg.naturalHeight || sourceImg.height;
+      const origW = sourceImg.naturalWidth || sourceImg.width;
+      const origH = sourceImg.naturalHeight || sourceImg.height;
+
+      // Safe dimension limit for WebGL canvas textures on mobile Chrome
+      const maxSafeDim = (this.device && this.device.isMobile) ? 4096 : 6144;
+      let srcW = origW;
+      let srcH = origH;
+      let workingSource = sourceImg;
+
+      const maxSrcDim = Math.floor(maxSafeDim / scale);
+      if (srcW > maxSrcDim || srcH > maxSrcDim) {
+        const ratio = Math.min(maxSrcDim / srcW, maxSrcDim / srcH);
+        srcW = Math.max(4, Math.floor((origW * ratio) / 4) * 4);
+        srcH = Math.max(4, Math.floor((origH * ratio) / 4) * 4);
+
+        const downCanvas = document.createElement('canvas');
+        downCanvas.width = srcW;
+        downCanvas.height = srcH;
+        const downCtx = downCanvas.getContext('2d');
+        downCtx.imageSmoothingEnabled = true;
+        downCtx.imageSmoothingQuality = 'high';
+        downCtx.drawImage(sourceImg, 0, 0, srcW, srcH);
+        workingSource = downCanvas;
+      }
+
       const dstW = Math.round(srcW * scale);
       const dstH = Math.round(srcH * scale);
 
@@ -772,7 +873,7 @@
         tileCanvas.width = srcW;
         tileCanvas.height = srcH;
         const tileCtx = tileCanvas.getContext('2d');
-        tileCtx.drawImage(sourceImg, 0, 0, srcW, srcH);
+        tileCtx.drawImage(workingSource, 0, 0, srcW, srcH);
 
         let processedTile;
         if (useWebGL) {
@@ -823,7 +924,7 @@
           tileCanvas.width = sw;
           tileCanvas.height = sh;
           tileCtx.clearRect(0, 0, sw, sh);
-          tileCtx.drawImage(sourceImg, sx, sy, sw, sh, 0, 0, sw, sh);
+          tileCtx.drawImage(workingSource, sx, sy, sw, sh, 0, 0, sw, sh);
 
           let processedTile;
           if (useWebGL) {
@@ -930,6 +1031,7 @@
         if (this.isDraggingDivider) {
           this.isDraggingDivider = false;
           try { this.divider.releasePointerCapture(e.pointerId); } catch (_) {}
+          try { this.stage.releasePointerCapture(e.pointerId); } catch (_) {}
         }
         if (this.isPanning) {
           this.isPanning = false;
@@ -937,16 +1039,27 @@
         }
       });
 
-      // Pan stage on drag when not clicking divider
+      // Pointer down on stage: glide divider in normal mode, or pan when zoomed in
       this.stage.addEventListener('pointerdown', (e) => {
         if (this.isDraggingDivider) return;
         if (this.viewMode === 'blink') return;
-        this.isPanning = true;
-        this.stage.classList.add('grabbing');
-        this.dragStartX = e.clientX;
-        this.dragStartY = e.clientY;
-        this.initialPanX = this.panX;
-        this.initialPanY = this.panY;
+
+        if (this.zoomLevel > 1.05) {
+          this.isPanning = true;
+          this.stage.classList.add('grabbing');
+          this.dragStartX = e.clientX;
+          this.dragStartY = e.clientY;
+          this.initialPanX = this.panX;
+          this.initialPanY = this.panY;
+        } else if (this.viewMode === 'split') {
+          const rect = (this.compareFrame || this.splitWrapper).getBoundingClientRect();
+          let x = e.clientX - rect.left;
+          x = Math.max(0, Math.min(rect.width, x));
+          this.splitPos = (x / rect.width) * 100;
+          this.updateSplitPosition();
+          this.isDraggingDivider = true;
+          try { this.stage.setPointerCapture(e.pointerId); } catch (_) {}
+        }
       });
 
       // Mouse wheel zoom
@@ -1239,9 +1352,9 @@
       this.dom.engineRadios.forEach(r => {
         r.addEventListener('change', () => {
           const val = this.getSelectedEngine();
-          const label = val === 'espcn' ? 'Beralih ke AI Ultra-Ringan (ESPCN / FSRCNN)' :
-                        val === 'ai' ? 'Beralih ke AI Real-ESRGAN (Berat)' :
-                        val === 'webgl' ? 'Beralih ke Shader GPU Cepat' : 'Beralih ke CPU Canvas';
+          const label = val === 'espcn' ? 'Beralih ke AI Neural ESPCN' :
+                        val === 'ai' ? 'Beralih ke AI Real-ESRGAN' :
+                        val === 'webgl' ? 'Beralih ke Shader GPU Instan' : 'Beralih ke CPU Canvas';
           this.showToast(label, 'info');
           this.processCurrentItem();
         });
@@ -1490,7 +1603,7 @@
     }
 
     getSelectedEngine() {
-      let selected = 'espcn';
+      let selected = 'webgl';
       this.dom.engineRadios.forEach(r => {
         if (r.checked) selected = r.value;
       });

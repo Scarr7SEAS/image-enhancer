@@ -355,14 +355,29 @@
               </label>
               <div class="engine-toggle-row">
                 <label class="radio-chip">
-                  <input type="radio" name="engineMode" value="espcn" checked>
+                  <input type="radio" name="engineMode" value="webgl" checked>
+                  <span class="chip-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+                      <line x1="7" y1="2" x2="7" y2="22"></line>
+                      <line x1="17" y1="2" x2="17" y2="22"></line>
+                      <line x1="2" y1="12" x2="22" y2="12"></line>
+                    </svg>
+                    <div class="chip-text-group">
+                      <span class="chip-title">Shader GPU Instan - AMD CAS dan Bicubic</span>
+                      <span class="chip-sub">Akselerasi Hardware GPU &bull; Tanpa Unduh Model &bull; Paling Cepat di HP</span>
+                    </div>
+                  </span>
+                </label>
+                <label class="radio-chip">
+                  <input type="radio" name="engineMode" value="espcn">
                   <span class="chip-content">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                     </svg>
                     <div class="chip-text-group">
-                      <span class="chip-title">AI Ultra-Ringan ESPCN / FSRCNN (Rekomendasi HP)</span>
-                      <span class="chip-sub">Deep Learning Cepat &bull; Ukuran 99 KB &bull; Selesai 1 Detik di HP</span>
+                      <span class="chip-title">AI Neural ESPCN - Model Deep Learning Ringan</span>
+                      <span class="chip-sub">Super-Resolution Deep Learning &bull; Ukuran 99 KB &bull; Akurat</span>
                     </div>
                   </span>
                 </label>
@@ -375,23 +390,8 @@
                       <polyline points="2 12 12 17 22 12"></polyline>
                     </svg>
                     <div class="chip-text-group">
-                      <span class="chip-title">AI Real-ESRGAN (Super-Resolution Berat)</span>
-                      <span class="chip-sub">Model Neural 4.6 MB &bull; Kualitas Maksimal (Cocok untuk Laptop/PC)</span>
-                    </div>
-                  </span>
-                </label>
-                <label class="radio-chip">
-                  <input type="radio" name="engineMode" value="webgl">
-                  <span class="chip-content">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
-                      <line x1="7" y1="2" x2="7" y2="22"></line>
-                      <line x1="17" y1="2" x2="17" y2="22"></line>
-                      <line x1="2" y1="12" x2="22" y2="12"></line>
-                    </svg>
-                    <div class="chip-text-group">
-                      <span class="chip-title">Shader GPU Cepat (AMD CAS + Sobel)</span>
-                      <span class="chip-sub">Filter Matematika &bull; Instan &bull; Rekonstruksi Tepi</span>
+                      <span class="chip-title">AI Real-ESRGAN - Kualitas Maksimal PC</span>
+                      <span class="chip-sub">Model Neural 4.6 MB &bull; Detail Maksimal &bull; Rekomendasi Laptop</span>
                     </div>
                   </span>
                 </label>
@@ -404,7 +404,7 @@
                     </svg>
                     <div class="chip-text-group">
                       <span class="chip-title">CPU Canvas Dasar</span>
-                      <span class="chip-sub">Kompatibilitas Komputer Lama</span>
+                      <span class="chip-sub">Kompatibilitas Perangkat Klasik</span>
                     </div>
                   </span>
                 </label>
@@ -683,6 +683,6 @@
   <!-- Scripts -->
   <script src="jszip.min.js"></script>
   <script src="ort.min.js"></script>
-  <script src="app.js?v=2.0.0"></script>
+  <script src="app.js?v=2.1.0"></script>
 </body>
 </html>
