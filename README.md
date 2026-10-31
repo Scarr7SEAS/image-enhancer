@@ -6,6 +6,13 @@ Aplikasi web modern untuk meningkatkan resolusi foto (1x, 2x, 3x, 4x) dan melaku
 
 ## 🌟 Fitur Utama
 
+- **Model AI Deep Learning Real-ESRGAN (In-Browser)**:
+  - Menggunakan model neural network **Real-ESRGAN (SRVGGNetCompact)** yang berjalan 100% di browser via **ONNX Runtime Web SIMD WebAssembly**.
+  - Menghilangkan kompresi blok JPEG, merekonstruksi garis tepi yang tajam, dan memulihkan detail objek secara otentik.
+- **Pilihan Mesin Pemrosesan Fleksibel**:
+  - **AI Real-ESRGAN (Default)**: Kualitas super-resolution otentik (seperti model desktop).
+  - **Shader GPU Cepat (AMD CAS + Sobel)**: Instan 1 detik untuk perangkat dengan daya rendah.
+  - **Canvas CPU**: Kompatibilitas untuk browser lama.
 - **Fokus Rekonstruksi Pixel (Bukan Filter Wajah Palsu)**:
   - Mengembalikan ketajaman teks, tepi objek, garis arsitektur, dan tekstur kain.
   - Bebas efek halusinasi AI wajah atau penghalusan kulit berlebihan.
