@@ -23,6 +23,7 @@
       this.ramGB = navigator.deviceMemory || (this.isMobile ? 3 : 8);
       this.cpuCores = navigator.hardwareConcurrency || 4;
       this.hasWebGL = false;
+      this.hasWebGPU = typeof navigator !== 'undefined' && !!navigator.gpu;
       this.maxTextureSize = 2048;
       this.rendererName = 'Canvas 2D';
       
@@ -52,13 +53,17 @@
     }
 
     calculateSafeTileSize() {
-      // On mobile Chrome or low-RAM devices, use conservative tile sizes to prevent tab OOM crash
+      // Conservative tile size for mobile/low-RAM to prevent tab OOM crash
       if (this.isMobile || this.ramGB <= 4) {
         this.tileSize = 768;
         this.tileOverlap = 16;
+        this.realEsrganTileSize = 128;
+        this.espcnTileSize = 160;
       } else {
         this.tileSize = Math.min(1536, Math.floor(this.maxTextureSize / 2));
         this.tileOverlap = 24;
+        this.realEsrganTileSize = this.hasWebGPU ? 256 : 192;
+        this.espcnTileSize = 256;
       }
     }
   }
@@ -373,6 +378,7 @@
       this.device = deviceProfile || { isMobile: false, ramGB: 4 };
       this.session = null;
       this.isLoading = false;
+      this.providerUsed = 'wasm';
       this.modelUrl = './models/realesr-general-x4v3.onnx';
     }
 
@@ -397,10 +403,30 @@
         ort.env.wasm.wasmPaths = './';
         ort.env.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency || 2);
 
-        this.session = await ort.InferenceSession.create(this.modelUrl, {
-          executionProviders: ['wasm']
-        });
+        let loadedSession = null;
+        if (typeof navigator !== 'undefined' && navigator.gpu) {
+          try {
+            if (onProgress) onProgress(20, 'Menginisialisasi akselerasi WebGPU...');
+            loadedSession = await ort.InferenceSession.create(this.modelUrl, {
+              executionProviders: ['webgpu', 'wasm'],
+              graphOptimizationLevel: 'all'
+            });
+            this.providerUsed = 'webgpu';
+          } catch (gpuErr) {
+            console.warn('WebGPU fallback to WASM:', gpuErr);
+          }
+        }
 
+        if (!loadedSession) {
+          if (onProgress) onProgress(30, 'Menginisialisasi WebAssembly SIMD...');
+          loadedSession = await ort.InferenceSession.create(this.modelUrl, {
+            executionProviders: ['wasm'],
+            graphOptimizationLevel: 'all'
+          });
+          this.providerUsed = 'wasm';
+        }
+
+        this.session = loadedSession;
         this.isLoading = false;
         return this.session;
       } catch (err) {
@@ -451,14 +477,19 @@
       ai4xCanvas.height = srcH * 4;
       const ai4xCtx = ai4xCanvas.getContext('2d');
 
-      // Optimized tile size: 96px runs at ~0.3s per tile on SIMD WASM
-      const tileSize = 96;
+      // Adaptive tile size based on device & hardware capability (WebGPU vs Mobile)
+      const tileSize = (this.device && this.device.realEsrganTileSize) ? this.device.realEsrganTileSize : (this.device.isMobile ? 128 : 192);
       const overlap = 8;
 
       const cols = Math.ceil(srcW / tileSize);
       const rows = Math.ceil(srcH / tileSize);
       const totalTiles = cols * rows;
       let currentTile = 0;
+
+      // Pre-allocate shared tile canvas to eliminate per-tile garbage collection spikes
+      const sharedTileCanvas = document.createElement('canvas');
+      const sharedTileCtx = sharedTileCanvas.getContext('2d');
+      const providerLabel = this.providerUsed === 'webgpu' ? 'GPU' : 'WASM';
 
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
@@ -478,6 +509,7 @@
           // Strictly enforce multiples of 4 for CNN spatial dimension requirements
           sw = Math.max(4, Math.floor(sw / 4) * 4);
           sh = Math.max(4, Math.floor(sh / 4) * 4);
+          if (sw <= 0 || sh <= 0) continue;
 
           const tileImgData = srcCtx.getImageData(sx, sy, sw, sh);
           const pixels = tileImgData.data;
@@ -498,11 +530,9 @@
           const outTileH = sh * 4;
           const outPlane = outTileW * outTileH;
 
-          const tileCanvas = document.createElement('canvas');
-          tileCanvas.width = outTileW;
-          tileCanvas.height = outTileH;
-          const tileCtx = tileCanvas.getContext('2d');
-          const outImgData = tileCtx.createImageData(outTileW, outTileH);
+          sharedTileCanvas.width = outTileW;
+          sharedTileCanvas.height = outTileH;
+          const outImgData = sharedTileCtx.createImageData(outTileW, outTileH);
           const outPixels = outImgData.data;
 
           for (let p = 0, idx = 0; p < outPlane; p++, idx += 4) {
@@ -511,7 +541,7 @@
             outPixels[idx + 2] = Math.min(255, Math.max(0, Math.round(outData[p + 2 * outPlane] * 255.0)));
             outPixels[idx + 3] = 255;
           }
-          tileCtx.putImageData(outImgData, 0, 0);
+          sharedTileCtx.putImageData(outImgData, 0, 0);
 
           const innerSx = (c === 0) ? 0 : overlap;
           const innerSy = (r === 0) ? 0 : overlap;
@@ -521,17 +551,18 @@
           const innerSh = innerEy - innerSy;
 
           ai4xCtx.drawImage(
-            tileCanvas,
+            sharedTileCanvas,
             innerSx * 4, innerSy * 4, innerSw * 4, innerSh * 4,
             (sx + innerSx) * 4, (sy + innerSy) * 4, innerSw * 4, innerSh * 4
           );
 
           const percent = Math.round((currentTile / totalTiles) * 100);
           if (onProgress) {
-            onProgress(percent, `AI Real-ESRGAN: Ubin ${currentTile} dari ${totalTiles} (${percent}%)`);
+            onProgress(percent, `AI Real-ESRGAN [${providerLabel}]: Ubin ${currentTile} dari ${totalTiles} (${percent}%)`);
           }
 
-          await new Promise(res => setTimeout(res, 4));
+          // Crucial: Yield to UI thread to maintain 60 FPS and process user input
+          await new Promise(res => setTimeout(res, 16));
         }
       }
 
@@ -640,13 +671,29 @@
       ai4xCanvas.height = outH;
       const ai4xCtx = ai4xCanvas.getContext('2d');
 
-      const tileSize = (this.device && this.device.isMobile) ? 160 : 192;
+      const tileSize = (this.device && this.device.espcnTileSize) ? this.device.espcnTileSize : (this.device.isMobile ? 160 : 256);
       const overlap = 8;
       const cols = Math.ceil(padW / tileSize);
       const rows = Math.ceil(padH / tileSize);
       const totalTiles = cols * rows;
 
       let currentTile = 0;
+
+      // Pre-allocate shared staging canvases to eliminate garbage collection spikes
+      const tileOutCanvas = document.createElement('canvas');
+      const tileOutCtx = tileOutCanvas.getContext('2d');
+      const cbCanvas = document.createElement('canvas');
+      const cbCtx = cbCanvas.getContext('2d');
+      const crCanvas = document.createElement('canvas');
+      const crCtx = crCanvas.getContext('2d');
+      const cb4x = document.createElement('canvas');
+      const cb4xCtx = cb4x.getContext('2d');
+      cb4xCtx.imageSmoothingEnabled = true;
+      cb4xCtx.imageSmoothingQuality = 'high';
+      const cr4x = document.createElement('canvas');
+      const cr4xCtx = cr4x.getContext('2d');
+      cr4xCtx.imageSmoothingEnabled = true;
+      cr4xCtx.imageSmoothingQuality = 'high';
 
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
@@ -672,15 +719,11 @@
           const totalPixels = sw * sh;
 
           const yPlane = new Float32Array(totalPixels);
-          const cbCanvas = document.createElement('canvas');
           cbCanvas.width = sw; cbCanvas.height = sh;
-          const cbCtx = cbCanvas.getContext('2d');
           const cbImgData = cbCtx.createImageData(sw, sh);
           const cbData = cbImgData.data;
 
-          const crCanvas = document.createElement('canvas');
           crCanvas.width = sw; crCanvas.height = sh;
-          const crCtx = crCanvas.getContext('2d');
           const crImgData = crCtx.createImageData(sw, sh);
           const crData = crImgData.data;
 
@@ -702,19 +745,11 @@
           const outTileW = sw * 4;
           const outTileH = sh * 4;
 
-          const cb4x = document.createElement('canvas');
           cb4x.width = outTileW; cb4x.height = outTileH;
-          const cb4xCtx = cb4x.getContext('2d');
-          cb4xCtx.imageSmoothingEnabled = true;
-          cb4xCtx.imageSmoothingQuality = 'high';
           cb4xCtx.drawImage(cbCanvas, 0, 0, outTileW, outTileH);
           const cb4xData = cb4xCtx.getImageData(0, 0, outTileW, outTileH).data;
 
-          const cr4x = document.createElement('canvas');
           cr4x.width = outTileW; cr4x.height = outTileH;
-          const cr4xCtx = cr4x.getContext('2d');
-          cr4xCtx.imageSmoothingEnabled = true;
-          cr4xCtx.imageSmoothingQuality = 'high';
           cr4xCtx.drawImage(crCanvas, 0, 0, outTileW, outTileH);
           const cr4xData = cr4xCtx.getImageData(0, 0, outTileW, outTileH).data;
 
@@ -722,7 +757,6 @@
           const results = await this.session.run({ input: inputTensor });
           const outY = results.output.data;
 
-          const tileOutCanvas = document.createElement('canvas');
           tileOutCanvas.width = outTileW;
           tileOutCanvas.height = outTileH;
           const tileOutCtx = tileOutCanvas.getContext('2d');
